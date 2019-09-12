@@ -126,11 +126,11 @@ impl <T> Interval<T> where T : Ord + Clone {
             (other.clone(), self.clone())
         };
 
-        if first.upper < second.lower {
-            IntervalRelation::Disjunct{ first, second, }
-        }
-        else if first.upper.is_touching(&second.lower) {
+        if first.upper.is_touching(&second.lower) {
             IntervalRelation::Touching{ first, second, }
+        }
+        else if first.upper < second.lower {
+            IntervalRelation::Disjunct{ first, second, }
         }
         else if first == second {
             IntervalRelation::Equal(first)
@@ -219,6 +219,38 @@ mod interval_tests {
         assert_eq!(
             rel(5..7, 1..4),
             IntervalRelation::Disjunct{ first: ri(1..4), second: ri(5..7) }
+        );
+    }
+
+    #[test]
+    fn a_touches_b() {
+        assert_eq!(
+            rel(1..4, 4..7),
+            IntervalRelation::Touching{ first: ri(1..4), second: ri(4..7) }
+        );
+    }
+
+    #[test]
+    fn b_touches_a() {
+        assert_eq!(
+            rel(4..7, 1..4),
+            IntervalRelation::Touching{ first: ri(1..4), second: ri(4..7) }
+        );
+    }
+
+    #[test]
+    fn a_starts_b() {
+        assert_eq!(
+            rel(4..8, 4..6),
+            IntervalRelation::Starting{ overlapping: ri(4..6), disjunct: ri(6..8) }
+        );
+    }
+
+    #[test]
+    fn b_starts_a() {
+        assert_eq!(
+            rel(4..6, 4..8),
+            IntervalRelation::Starting{ overlapping: ri(4..6), disjunct: ri(6..8) }
         );
     }
 }
