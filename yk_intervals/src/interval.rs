@@ -294,4 +294,36 @@ mod interval_tests {
             }
         );
     }
+
+    #[test]
+    fn a_contains_b() {
+        assert_eq!(
+            rel(2..10, 4..7),
+            IntervalRelation::Containing{ first_disjunct: ri(2..4), overlapping: ri(4..7), second_disjunct: ri(7..10) }
+        );
+    }
+
+    #[test]
+    fn b_contains_a() {
+        assert_eq!(
+            rel(4..7, 2..10),
+            IntervalRelation::Containing{ first_disjunct: ri(2..4), overlapping: ri(4..7), second_disjunct: ri(7..10) }
+        );
+    }
+
+    #[test]
+    fn a_intersects_b() {
+        assert_eq!(
+            rel(2..7, 4..9),
+            IntervalRelation::Overlapping{ first_disjunct: ri(2..4), overlapping: ri(4..7), second_disjunct: ri(7..9) }
+        );
+    }
+
+    #[test]
+    fn b_intersects_a() {
+        assert_eq!(
+            rel(4..9, 2..7),
+            IntervalRelation::Overlapping{ first_disjunct: ri(2..4), overlapping: ri(4..7), second_disjunct: ri(7..9) }
+        );
+    }
 }
