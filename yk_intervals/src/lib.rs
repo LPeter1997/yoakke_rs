@@ -1,5 +1,6 @@
 
 mod bound;
+mod interval;
 
 #[cfg(test)]
 mod tests {

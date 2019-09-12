@@ -1,6 +1,9 @@
+/**
+ * Here is a generic lower and upper bound representation for intervals.
+ */
 
-use std::cmp::{PartialEq, Eq, PartialOrd, Ord, Ordering};
-use std::convert::{From};
+use std::cmp::Ordering;
+use std::convert::From;
 
 /// Represents the lower bound of an interval
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -170,7 +173,7 @@ impl <T> From<std::ops::Bound<T>> for UpperBound<T> {
  */
 
 impl <T> LowerBound<T> where T : PartialEq {
-    pub fn touches(&self, other: &UpperBound<T>) -> bool {
+    pub fn is_touching(&self, other: &UpperBound<T>) -> bool {
         match (self, other) {
               (LowerBound::Excluded(x), UpperBound::Included(y))
             | (LowerBound::Included(x), UpperBound::Excluded(y)) => x.eq(y),
@@ -181,7 +184,31 @@ impl <T> LowerBound<T> where T : PartialEq {
 }
 
 impl <T> UpperBound<T> where T : PartialEq {
-    pub fn touches(&self, other: &LowerBound<T>) -> bool {
-        other.touches(self)
+    pub fn is_touching(&self, other: &LowerBound<T>) -> bool {
+        other.is_touching(self)
+    }
+}
+
+/**
+ * Construct a touching bound pair.
+ */
+
+impl <T> LowerBound<T> where T : Clone {
+    pub fn touching(&self) -> Option<UpperBound<T>> {
+        match self {
+            LowerBound::Unbounded => None,
+            LowerBound::Excluded(x) => Some(UpperBound::Included(x.clone())),
+            LowerBound::Included(x) => Some(UpperBound::Excluded(x.clone())),
+        }
+    }
+}
+
+impl <T> UpperBound<T> where T : Clone {
+    pub fn touching(&self) -> Option<LowerBound<T>> {
+        match self {
+            UpperBound::Unbounded => None,
+            UpperBound::Excluded(x) => Some(LowerBound::Included(x.clone())),
+            UpperBound::Included(x) => Some(LowerBound::Excluded(x.clone())),
+        }
     }
 }
