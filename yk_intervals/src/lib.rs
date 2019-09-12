@@ -2,10 +2,5 @@
 mod bound;
 mod interval;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub use bound::{LowerBound, UpperBound};
+pub use interval::{Interval, IntervalRelation};

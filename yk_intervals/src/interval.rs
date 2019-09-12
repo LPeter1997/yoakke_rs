@@ -178,3 +178,47 @@ impl <T> Interval<T> where T : Ord + Clone {
         }
     }
 }
+
+// Tests ///////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod interval_tests {
+    use super::*;
+
+    fn bound_clone<T>(b: std::ops::Bound<&T>) -> std::ops::Bound<T> where T : Clone {
+        match b {
+            std::ops::Bound::Excluded(x) => std::ops::Bound::Excluded(x.clone()),
+            std::ops::Bound::Included(x) => std::ops::Bound::Included(x.clone()),
+            std::ops::Bound::Unbounded => std::ops::Bound::Unbounded,
+        }
+    }
+
+    fn range_to_interval<R, T>(r: R) -> Interval<T> where R : std::ops::RangeBounds<T>, T : Clone {
+        Interval::with_bounds(bound_clone(r.start_bound()).into(), bound_clone(r.end_bound()).into())
+    }
+
+    // Just to make it easier to type
+    fn ri<R, T>(r: R) -> Interval<T> where R : std::ops::RangeBounds<T>, T : Clone {
+        range_to_interval(r)
+    }
+
+    fn rel<R, T>(l: R, r: R) -> IntervalRelation<T> where R : std::ops::RangeBounds<T>, T : Clone + Ord {
+        ri(l).relates(&ri(r))
+    }
+
+    #[test]
+    fn a_before_b() {
+        assert_eq!(
+            rel(1..4, 5..7),
+            IntervalRelation::Disjunct{ first: ri(1..4), second: ri(5..7) }
+        );
+    }
+
+    #[test]
+    fn b_before_a() {
+        assert_eq!(
+            rel(5..7, 1..4),
+            IntervalRelation::Disjunct{ first: ri(1..4), second: ri(5..7) }
+        );
+    }
+}
