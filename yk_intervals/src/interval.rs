@@ -202,7 +202,8 @@ mod interval_tests {
         range_to_interval(r)
     }
 
-    fn rel<R, T>(l: R, r: R) -> IntervalRelation<T> where R : std::ops::RangeBounds<T>, T : Clone + Ord {
+    fn rel<R1, R2, T>(l: R1, r: R2) -> IntervalRelation<T> where T : Clone + Ord,
+                    R1 : std::ops::RangeBounds<T>, R2 : std::ops::RangeBounds<T> {
         ri(l).relates(&ri(r))
     }
 
@@ -251,6 +252,46 @@ mod interval_tests {
         assert_eq!(
             rel(4..6, 4..8),
             IntervalRelation::Starting{ overlapping: ri(4..6), disjunct: ri(6..8) }
+        );
+    }
+
+    #[test]
+    fn a_finishes_b() {
+        assert_eq!(
+            rel(6..8, 4..8),
+            IntervalRelation::Finishing{ disjunct: ri(4..6), overlapping: ri(6..8) }
+        );
+    }
+
+    #[test]
+    fn b_finishes_a() {
+        assert_eq!(
+            rel(4..8, 6..8),
+            IntervalRelation::Finishing{ disjunct: ri(4..6), overlapping: ri(6..8) }
+        );
+    }
+
+    #[test]
+    fn a_singleton_intersects_b() {
+        assert_eq!(
+            rel(4..=6, 6..8),
+            IntervalRelation::Overlapping{
+                first_disjunct: ri(4..6),
+                overlapping: ri(6..=6),
+                second_disjunct: Interval::with_bounds(LowerBound::Excluded(6), UpperBound::Excluded(8))
+            }
+        );
+    }
+
+    #[test]
+    fn b_singleton_intersects_a() {
+        assert_eq!(
+            rel(6..8, 4..=6),
+            IntervalRelation::Overlapping{
+                first_disjunct: ri(4..6),
+                overlapping: ri(6..=6),
+                second_disjunct: Interval::with_bounds(LowerBound::Excluded(6), UpperBound::Excluded(8))
+            }
         );
     }
 }
