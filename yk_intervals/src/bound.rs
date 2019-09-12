@@ -3,7 +3,6 @@
  */
 
 use std::cmp::Ordering;
-use std::convert::From;
 
 /// Represents the lower bound of an interval
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -8,8 +8,8 @@ use crate::bound::{LowerBound, UpperBound};
 /// Represents a generic interval
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Interval<T> {
-    lower: LowerBound<T>,
-    upper: UpperBound<T>,
+    pub lower: LowerBound<T>,
+    pub upper: UpperBound<T>,
 }
 
 impl <T> Interval<T> {
