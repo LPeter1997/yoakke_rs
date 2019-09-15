@@ -5,7 +5,7 @@
 use crate::interval::{Interval};
 
 pub struct IntervalMap<K, V> {
-    intervals: Vec<(Interval<K>, V)>,
+    pub(crate) intervals: Vec<(Interval<K>, V)>,
 }
 
 impl <K, V> IntervalMap<K, V> {
