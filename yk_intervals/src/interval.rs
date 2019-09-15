@@ -179,6 +179,69 @@ impl <T> Interval<T> where T : Ord + Clone {
     }
 }
 
+/**
+ * Utilities for interval lists/maps.
+ */
+
+// We need this because the standard library doesn't deal with different key types
+fn bsearch_by_key<'a, T, K1, K2, F>(
+    slice: &'a [T], searched: &'a K1, mut key_selector: F) -> Result<usize, usize>
+    where F : FnMut(&'a T) -> &'a K2, K1 : PartialOrd<K2>, K2 : 'a {
+
+    let mut size = slice.len();
+    if size == 0 {
+        return Err(0);
+    }
+    let mut base = 0usize;
+    while size > 1 {
+        let half = size / 2;
+        let mid = base + half;
+        let key = key_selector(&slice[mid]);
+        let cmp = searched.partial_cmp(&key).unwrap();
+        base = if cmp == std::cmp::Ordering::Greater { mid } else { base };
+        size -= half;
+    }
+
+    let key = key_selector(&slice[base]);
+    let cmp = searched.partial_cmp(&key).unwrap();
+    if cmp == std::cmp::Ordering::Equal {
+        Ok(base)
+    }
+    else {
+        Err(base + (cmp == std::cmp::Ordering::Greater) as usize)
+    }
+}
+
+pub(crate) fn intersecting_index_range<'a, T, K, F>(
+    slice: &'a [T], interval: &'a Interval<K>, mut proj: F) -> std::ops::Range<usize>
+    where F : FnMut(&'a T) -> &'a Interval<K>, K : Ord {
+
+    let from = match bsearch_by_key(slice, &interval.lower, |x| &proj(x).upper) {
+        Ok(idx) | Err(idx) => idx
+    };
+    let to = match bsearch_by_key(&slice[from..], &interval.upper, |x| &proj(x).lower) {
+        Ok(idx) | Err(idx) => idx
+    } + from;
+
+    from..to
+}
+
+pub(crate) fn touching_index_range<'a, T, K, F>(
+    slice: &'a [T], interval: &'a Interval<K>, mut proj: F) -> std::ops::Range<usize>
+    where F : FnMut(&'a T) -> &'a Interval<K> + Copy, K : Ord {
+
+    let std::ops::Range{ mut start, mut end, } = intersecting_index_range(slice, interval, proj);
+
+    if start != 0 && interval.lower.is_touching(&proj(&slice[start - 1]).upper) {
+        start -= 1;
+    }
+    if end != slice.len() && interval.upper.is_touching(&proj(&slice[end]).lower) {
+        end += 1;
+    }
+
+    start..end
+}
+
 // Tests ///////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
@@ -206,6 +269,18 @@ mod interval_tests {
                     R1 : std::ops::RangeBounds<T>, R2 : std::ops::RangeBounds<T> {
         ri(l).relates(&ri(r))
     }
+
+    fn irs<T>(slice: &[Interval<T>], interval: &Interval<T>) -> (std::ops::Range<usize>, std::ops::Range<usize>)
+        where T : Ord {
+        (
+            intersecting_index_range(slice, interval, |x| x),
+            touching_index_range(slice, interval, |x| x)
+        )
+    }
+
+    /**
+     * Relation tests.
+     */
 
     #[test]
     fn a_before_b() {
@@ -324,6 +399,58 @@ mod interval_tests {
         assert_eq!(
             rel(4..9, 2..7),
             IntervalRelation::Overlapping{ first_disjunct: ri(2..4), overlapping: ri(4..7), second_disjunct: ri(7..9) }
+        );
+    }
+
+    /**
+     * The "search" algorithm tests.
+     */
+
+    #[test]
+    fn search_in_empty() {
+        assert_eq!(
+            irs(&[], &ri(1..3)),
+            (0..0, 0..0)
+        );
+    }
+
+    #[test]
+    fn search_before_all() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(1..2)),
+            (0..0, 0..0)
+        );
+    }
+
+    #[test]
+    fn search_before_all_touch() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(1..3)),
+            (0..0, 0..1)
+        );
+    }
+
+    #[test]
+    fn search_intersect_first() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(1..4)),
+            (0..1, 0..1)
+        );
+    }
+
+    #[test]
+    fn search_intersect_first_touch_second() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(1..7)),
+            (0..1, 0..2)
+        );
+    }
+
+    #[test]
+    fn search_intersect_first_2() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(1..8)),
+            (0..2, 0..2)
         );
     }
 }
