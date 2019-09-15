@@ -453,4 +453,68 @@ mod interval_tests {
             (0..2, 0..2)
         );
     }
+
+    #[test]
+    fn search_between() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(10..13)),
+            (2..2, 2..2)
+        );
+    }
+
+    #[test]
+    fn search_between_touch_before() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(9..13)),
+            (2..2, 1..2)
+        );
+    }
+
+    #[test]
+    fn search_between_touch_after() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(10..14)),
+            (2..2, 2..3)
+        );
+    }
+
+    #[test]
+    fn search_between_touch_before_after() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(9..14)),
+            (2..2, 1..3)
+        );
+    }
+
+    #[test]
+    fn search_intersects_middle() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(8..15)),
+            (1..3, 1..3)
+        );
+    }
+
+    #[test]
+    fn search_intersects_middle_touch_after() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(8..20)),
+            (1..3, 1..4)
+        );
+    }
+
+    #[test]
+    fn search_intersects_middle_touch_before() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(6..15)),
+            (1..3, 0..3)
+        );
+    }
+
+    #[test]
+    fn search_intersects_middle_touch_before_after() {
+        assert_eq!(
+            irs(&[ri(3..6), ri(7..9), ri(14..17), ri(20..24)], &ri(6..20)),
+            (1..3, 0..4)
+        );
+    }
 }
