@@ -104,14 +104,32 @@ impl <T> IntervalSet<T> where T : Clone {
             }
             else if lower_unbounded {
                 // Fortunately the number of intervals don't cange
-
                 let n_intervals = self.intervals.len();
-                for i in 0..(n_intervals - 1) {
-                    self.intervals[i].lower = self.intervals[i].upper.touching().unwrap();
-                    self.intervals[i].upper = self.intervals[i + 1].lower.touching().unwrap();
+
+                if n_intervals > 1 {
+                    let mut prev_touch = self.intervals[n_intervals - 1].lower.touching().unwrap();
+
+                    // Modify the last one
+                    self.intervals[n_intervals - 1].lower = self.intervals[n_intervals - 1].upper.touching().unwrap();
+                    self.intervals[n_intervals - 1].upper = UpperBound::Unbounded;
+
+                    for i in (1..(n_intervals - 1)).rev() {
+                        let hi_touch = self.intervals[i].upper.touching().unwrap();
+                        self.intervals[i].upper = prev_touch;
+                        prev_touch = self.intervals[i].lower.touching().unwrap();
+                        self.intervals[i].lower = hi_touch;
+                    }
+
+                    // First one
+                    let hi_touch = self.intervals[0].upper.touching().unwrap();
+                    self.intervals[0].lower = hi_touch;
+                    self.intervals[0].upper = prev_touch;
                 }
-                // We make the last one unbounded
-                self.intervals.last_mut().unwrap().upper = UpperBound::Unbounded;
+                else {
+                    // Modify the first and only one
+                    self.intervals[0].lower = self.intervals[0].upper.touching().unwrap();
+                    self.intervals[0].upper = UpperBound::Unbounded;
+                }
             }
             else if upper_unbounded {
                 // Fortunately the number of intervals don't cange
@@ -357,5 +375,19 @@ mod interval_set_tests {
         let mut set = ivset_raw![2..4, 6..7, 8..11, 14..16, 18..];
         set.invert();
         assert_eq!(set, ivset![..2, 4..6, 7..8, 11..14, 16..18]);
+    }
+
+    #[test]
+    fn invert_many_even_unbounded_left() {
+        let mut set = ivset_raw![..2, 6..7, 8..11, 14..16];
+        set.invert();
+        assert_eq!(set, ivset![2..6, 7..8, 11..14, 16..]);
+    }
+
+    #[test]
+    fn invert_many_odd_unbounded_left() {
+        let mut set = ivset_raw![..2, 6..7, 8..11, 14..16, 18..21];
+        set.invert();
+        assert_eq!(set, ivset![2..6, 7..8, 11..14, 16..18, 21..]);
     }
 }
