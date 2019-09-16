@@ -126,22 +126,27 @@ impl <T> IntervalSet<T> where T : Clone {
             }
             else {
                 // Bounded, meaning N + 1 entries
-
                 let n_intervals = self.intervals.len();
-                for i in 1..(n_intervals - 1) {
-                    self.intervals[i].lower = self.intervals[i].upper.touching().unwrap();
-                    self.intervals[i].upper = self.intervals[i + 1].lower.touching().unwrap();
-                }
-
-                // Modify the first one
-                self.intervals[0].upper = self.intervals[0].lower.touching().unwrap();
-                self.intervals[0].lower = LowerBound::Unbounded;
 
                 // Add a last entry
                 self.intervals.push(Interval::with_bounds(
                     self.intervals.last().unwrap().upper.touching().unwrap(),
                     UpperBound::Unbounded
                 ));
+
+                // Save the first one's upper bound-touch
+                let mut prev_touch = self.intervals[0].upper.touching().unwrap();
+
+                // Modify the first one
+                self.intervals[0].upper = self.intervals[0].lower.touching().unwrap();
+                self.intervals[0].lower = LowerBound::Unbounded;
+
+                for i in 1..(n_intervals) {
+                    let low_touch = self.intervals[i].lower.touching().unwrap();
+                    self.intervals[i].lower = prev_touch;
+                    prev_touch = self.intervals[i].upper.touching().unwrap();
+                    self.intervals[i].upper = low_touch;
+                }
             }
         }
     }
@@ -274,6 +279,37 @@ mod interval_set_tests {
 
     #[test]
     fn invert_full() {
+        let mut set = ivset![..];
+        set.invert();
+        assert_eq!(set, IntervalSet::<usize>::new());
+        assert_eq!(set.intervals, vec![]);
+    }
 
+    #[test]
+    fn invert_single_bounded() {
+        let mut set = ivset_raw![3..5];
+        set.invert();
+        assert_eq!(set, ivset![..3, 5..]);
+    }
+
+    #[test]
+    fn invert_two_bounded() {
+        let mut set = ivset_raw![3..5, 7..9];
+        set.invert();
+        assert_eq!(set, ivset![..3, 5..7, 9..]);
+    }
+
+    #[test]
+    fn invert_many_even_bounded() {
+        let mut set = ivset_raw![3..5, 7..8, 10..14, 18..21];
+        set.invert();
+        assert_eq!(set, ivset![..3, 5..7, 8..10, 14..18, 21..]);
+    }
+
+    #[test]
+    fn invert_many_odd_bounded() {
+        let mut set = ivset_raw![3..5, 7..8, 10..14, 18..21, 24..26];
+        set.invert();
+        assert_eq!(set, ivset![..3, 5..7, 8..10, 14..18, 21..24, 26..]);
     }
 }
