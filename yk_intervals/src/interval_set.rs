@@ -1,5 +1,6 @@
 /**
- * Stores a set of disjunct intervals, unifying them when possible.
+ * Stores a set of disjunct, non-touching intervals, unifying them when
+ * possible.
  */
 
 use crate::bound::{LowerBound, UpperBound};
