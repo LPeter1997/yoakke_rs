@@ -21,6 +21,28 @@ pub enum UpperBound<T> {
 }
 
 /**
+ * Some observers.
+ */
+
+impl <T> LowerBound<T> {
+    pub fn is_unbounded(&self) -> bool {
+        match self {
+            LowerBound::Unbounded => true,
+            _ => false,
+        }
+    }
+}
+
+impl <T> UpperBound<T> {
+    pub fn is_unbounded(&self) -> bool {
+        match self {
+            UpperBound::Unbounded => true,
+            _ => false,
+        }
+    }
+}
+
+/**
  * Total ordering for lower-bound.
  */
 

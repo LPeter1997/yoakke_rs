@@ -2,6 +2,7 @@
  * Stores a set of disjunct intervals, unifying them when possible.
  */
 
+use crate::bound::{LowerBound, UpperBound};
 use crate::interval::{Interval, touching_index_range};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -67,6 +68,85 @@ impl <T> IntervalSet<T> where T : Ord {
     }
 }
 
+impl <T> IntervalSet<T> where T : Clone {
+    pub fn invert(&mut self) {
+        if self.intervals.is_empty() {
+            // Interval set is empty, the inverse is the full interval
+            self.intervals.push(Interval::full());
+        }
+        else if self.intervals[0].is_full() {
+            // We only have a single interval and it is the full interval
+            assert!(self.intervals.len() == 1);
+            // Constructing the inverse means just erasing everything
+            self.intervals.clear();
+        }
+        else {
+            // Interval set is not empty, we have 3 cases:
+            //  - Both ends are unbounded: for N intervals this creates N - 1 intervals when inverted
+            //  - One end is unbounded: for N intervals this creates N intervals when inverted
+            //  - Both ends are bounded: for N intervals this creates N + 1 intervals when inverted
+
+            let lower_unbounded = self.intervals.first().unwrap().lower.is_unbounded();
+            let upper_unbounded = self.intervals.last().unwrap().upper.is_unbounded();
+
+            if lower_unbounded && upper_unbounded {
+                // TODO: Can we unify this case with the above one?
+                assert!(self.intervals.len() != 1); // We have that covered already
+
+                let n_intervals = self.intervals.len() - 1;
+                for i in 0..n_intervals {
+                    self.intervals[i].lower = self.intervals[i].upper.touching().unwrap();
+                    self.intervals[i].upper = self.intervals[i + 1].lower.touching().unwrap();
+                }
+
+                // Remove the last entry
+                self.intervals.pop();
+            }
+            else if lower_unbounded {
+                // Fortunately the number of intervals don't cange
+
+                let n_intervals = self.intervals.len();
+                for i in 0..(n_intervals - 1) {
+                    self.intervals[i].lower = self.intervals[i].upper.touching().unwrap();
+                    self.intervals[i].upper = self.intervals[i + 1].lower.touching().unwrap();
+                }
+                // We make the last one unbounded
+                self.intervals.last_mut().unwrap().upper = UpperBound::Unbounded;
+            }
+            else if upper_unbounded {
+                // Fortunately the number of intervals don't cange
+
+                let n_intervals = self.intervals.len();
+                for i in 1..n_intervals {
+                    self.intervals[i].lower = self.intervals[i - 1].upper.touching().unwrap();
+                    self.intervals[i].upper = self.intervals[i].lower.touching().unwrap();
+                }
+                // We make the last one unbounded
+                self.intervals.first_mut().unwrap().lower = LowerBound::Unbounded;
+            }
+            else {
+                // Bounded, meaning N + 1 entries
+
+                let n_intervals = self.intervals.len();
+                for i in 1..(n_intervals - 1) {
+                    self.intervals[i].lower = self.intervals[i].upper.touching().unwrap();
+                    self.intervals[i].upper = self.intervals[i + 1].lower.touching().unwrap();
+                }
+
+                // Modify the first one
+                self.intervals[0].upper = self.intervals[0].lower.touching().unwrap();
+                self.intervals[0].lower = LowerBound::Unbounded;
+
+                // Add a last entry
+                self.intervals.push(Interval::with_bounds(
+                    self.intervals.last().unwrap().upper.touching().unwrap(),
+                    UpperBound::Unbounded
+                ));
+            }
+        }
+    }
+}
+
 // Tests ///////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
@@ -113,6 +193,10 @@ mod interval_set_tests {
             }
         };
     }
+
+    /**
+     * Insertion tests.
+     */
 
     #[test]
     fn insert_into_empty_set() {
@@ -174,5 +258,22 @@ mod interval_set_tests {
         let mut set = ivset_raw![5..7, 12..15];
         set.insert(ri(3..16));
         assert_eq!(set, ivset![3..16]);
+    }
+
+    /**
+     * Inversion tests.
+     */
+
+    #[test]
+    fn invert_empty() {
+        let mut set = IntervalSet::<usize>::new();
+        set.invert();
+        assert_eq!(set, ivset![..]);
+        assert_eq!(set.intervals, vec![Interval::full()]);
+    }
+
+    #[test]
+    fn invert_full() {
+
     }
 }

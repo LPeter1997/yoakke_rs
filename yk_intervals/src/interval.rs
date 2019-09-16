@@ -12,12 +12,6 @@ pub struct Interval<T> {
     pub upper: UpperBound<T>,
 }
 
-impl <T> Interval<T> {
-    pub fn with_bounds(lower: LowerBound<T>, upper: UpperBound<T>) -> Self {
-        Self{ lower, upper }
-    }
-}
-
 /// Represents all the possible relations between two intervals
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum IntervalRelation<T> {
@@ -64,8 +58,28 @@ pub enum IntervalRelation<T> {
 }
 
 /**
+ * Constructing an interval.
+ */
+
+impl <T> Interval<T> {
+    pub fn with_bounds(lower: LowerBound<T>, upper: UpperBound<T>) -> Self {
+        Self{ lower, upper }
+    }
+
+    pub fn full() -> Self {
+        Self::with_bounds(LowerBound::Unbounded, UpperBound::Unbounded)
+    }
+}
+
+/**
  * Info about a single interval.
  */
+
+impl <T> Interval<T> {
+    pub fn is_full(&self) -> bool {
+        self.lower.is_unbounded() && self.upper.is_unbounded()
+    }
+}
 
 impl <T> Interval<T> where T : PartialOrd {
     /// Checks if an element is contained by the interval.
