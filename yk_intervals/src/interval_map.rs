@@ -241,4 +241,36 @@ mod interval_map_tests {
         assert_eq!(map.intervals, vec![(ri(2..3), vec![1])]);
         assert_eq!(map, ivmap![2..3 => vec![1]]);
     }
+
+    #[test]
+    fn insert_into_map_disjunct_before() {
+        let mut map = ivmap_raw![5..7 => vec![1], 12..15 => vec![1]];
+        assert_eq!(map.intervals, vec![(ri(5..7), vec![1]), (ri(12..15), vec![1])]);
+        map.insert_and_unify(ri(2..3), vec![2], test_unify);
+        assert_eq!(map.intervals, vec![(ri(2..3), vec![2]), (ri(5..7), vec![1]), (ri(12..15), vec![1])]);
+        assert_eq!(map, ivmap![2..3 => vec![2], 5..7 => vec![1], 12..15 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_disjunct_before_touch() {
+        let mut map = ivmap_raw![5..7 => vec![1], 12..15 => vec![1]];
+        assert_eq!(map.intervals, vec![(ri(5..7), vec![1]), (ri(12..15), vec![1])]);
+        map.insert_and_unify(ri(2..5), vec![2], test_unify);
+        assert_eq!(map.intervals, vec![(ri(2..5), vec![2]), (ri(5..7), vec![1]), (ri(12..15), vec![1])]);
+        assert_eq!(map, ivmap![2..5 => vec![2], 5..7 => vec![1], 12..15 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_disjunct_after() {
+        let mut map = ivmap_raw![5..7 => vec![1], 12..15 => vec![1]];
+        map.insert_and_unify(ri(17..19), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..7 => vec![1], 12..15 => vec![1], 17..19 => vec![2]]);
+    }
+
+    #[test]
+    fn insert_into_map_disjunct_after_touch() {
+        let mut map = ivmap_raw![5..7 => vec![1], 12..15 => vec![1]];
+        map.insert_and_unify(ri(15..19), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..7 => vec![1], 12..15 => vec![1], 15..19 => vec![2]]);
+    }
 }
