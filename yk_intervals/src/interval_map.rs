@@ -114,6 +114,7 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                     assert!(existing.0.upper == disjunct.upper);
 
                     let ex_clone = existing.1.clone();
+                    existing.0.upper = overlapping.upper;
                     existing.1 = unify_fn(ex_clone.clone(), value.clone());
                     // Add an extra entry after
                     self.intervals.insert(idx + 1, (disjunct, ex_clone));
@@ -128,6 +129,7 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                     assert!(key == overlapping);
 
                     let ex_clone = existing.1.clone();
+                    existing.0.lower = overlapping.lower;
                     existing.1 = unify_fn(ex_clone.clone(), value);
                     // Extra entry before
                     self.intervals.insert(idx, (disjunct, ex_clone));
@@ -306,5 +308,33 @@ mod interval_map_tests {
         let mut map = ivmap_raw![5..9 => vec![1]];
         map.insert_and_unify(ri(7..12), vec![2], test_unify);
         assert_eq!(map, ivmap![5..7 => vec![1], 7..9 => vec![1, 2], 9..12 => vec![2]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_starting_containing_inserted() {
+        let mut map = ivmap_raw![5..11 => vec![1]];
+        map.insert_and_unify(ri(5..7), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..7 => vec![1, 2], 7..11 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_starting_containing_existing() {
+        let mut map = ivmap_raw![5..7 => vec![1]];
+        map.insert_and_unify(ri(5..11), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..7 => vec![1, 2], 7..11 => vec![2]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_finishing_containing_inserted() {
+        let mut map = ivmap_raw![5..11 => vec![1]];
+        map.insert_and_unify(ri(8..11), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..8 => vec![1], 8..11 => vec![1, 2]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_finishing_containing_existing() {
+        let mut map = ivmap_raw![8..11 => vec![1]];
+        map.insert_and_unify(ri(5..11), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..8 => vec![2], 8..11 => vec![1, 2]]);
     }
 }
