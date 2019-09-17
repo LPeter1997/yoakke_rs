@@ -4,6 +4,7 @@
  */
 
 use crate::interval::{Interval, IntervalRelation, intersecting_index_range};
+use crate::bound::{LowerBound, UpperBound};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct IntervalMap<K, V> {
@@ -22,6 +23,129 @@ pub struct Unification<V> {
 }
 
 impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
+    // TODO: Lot of duplication between lower, upper and general unify...
+
+    // TODO: Check for extra clone()s here
+    // TODO: For multiple insertions we could use splice
+    fn insert_and_unify_single_lower<F>(
+        &mut self, idx: usize, key: Interval<K>, value: V, mut unify: F) -> (LowerBound<K>, usize)
+        where F : FnMut(Unification<V>) -> V {
+
+        let mut unify_fn = |existing, inserted| {
+            unify(Unification{ existing, inserted, })
+        };
+
+        let existing = &mut self.intervals[idx];
+        let rel = existing.0.relates(&key);
+
+        match rel {
+            IntervalRelation::Containing{ first_disjunct, overlapping, second_disjunct } => {
+                // The newly added interval must completely cover the existing one
+                assert!(existing.0 == overlapping);
+                assert!(key.lower == first_disjunct.lower);
+                assert!(key.upper == second_disjunct.upper);
+
+                // Unify to the existing
+                existing.1 = unify_fn(existing.1.clone(), value.clone());
+                // Add the first disjunct part
+                self.intervals.insert(idx, (first_disjunct, value));
+
+                (second_disjunct.lower, 1)
+            },
+
+            IntervalRelation::Overlapping{ first_disjunct, overlapping, second_disjunct } => {
+                assert!(existing.0.lower == first_disjunct.lower);
+                assert!(existing.0.upper == overlapping.upper);
+                assert!(key.lower == overlapping.lower);
+                assert!(key.upper == second_disjunct.upper);
+
+                // Resize the existing interval to be the lower disjunct
+                existing.0.upper = first_disjunct.upper;
+                // Add two extra intervals after that
+                let ex_clone = existing.1.clone();
+                self.intervals.insert(idx + 1, (overlapping, unify_fn(ex_clone.clone(), value.clone())));
+
+                (second_disjunct.lower, 1)
+            },
+
+            IntervalRelation::Starting{ overlapping, disjunct } => {
+                assert!(existing.0 == overlapping);
+                assert!(key.lower == overlapping.lower);
+                assert!(key.upper == disjunct.upper);
+
+                existing.1 = unify_fn(existing.1.clone(), value.clone());
+
+                (disjunct.lower, 1)
+            },
+
+              IntervalRelation::Equal(_)
+            | IntervalRelation::Touching{ .. }
+            | IntervalRelation::Finishing{ .. }
+            | IntervalRelation::Disjunct{ .. } => panic!("Impossible!"),
+        }
+    }
+
+    // TODO: Check for extra clone()s here
+    // TODO: For multiple insertions we could use splice
+    fn insert_and_unify_single_upper<F>(
+        &mut self, idx: usize, key: Interval<K>, value: V, mut unify: F) -> UpperBound<K>
+        where F : FnMut(Unification<V>) -> V {
+
+        let mut unify_fn = |existing, inserted| {
+            unify(Unification{ existing, inserted, })
+        };
+
+        let existing = &mut self.intervals[idx];
+        let rel = existing.0.relates(&key);
+
+        match rel {
+            IntervalRelation::Containing{ first_disjunct, overlapping, second_disjunct } => {
+                assert!(existing.0 == overlapping);
+                assert!(key.lower == first_disjunct.lower);
+                assert!(key.upper == second_disjunct.upper);
+
+                // Unify to the existing
+                existing.1 = unify_fn(existing.1.clone(), value.clone());
+                // Add the second disjunct piece
+                self.intervals.insert(idx + 1, (second_disjunct, value.clone()));
+
+                first_disjunct.upper
+            },
+
+            IntervalRelation::Overlapping{ first_disjunct, overlapping, second_disjunct } => {
+                assert!(key.lower == first_disjunct.lower);
+                assert!(key.upper == overlapping.upper);
+                assert!(existing.0.lower == overlapping.lower);
+                assert!(existing.0.upper == second_disjunct.upper);
+
+                // Resize the existing interval to be the upper disjunct
+                existing.0.lower = second_disjunct.lower;
+                // Add the extra overlappinginterval before that
+                let ex_clone = existing.1.clone();
+                self.intervals.insert(idx, (overlapping, unify_fn(ex_clone, value.clone())));
+
+                first_disjunct.upper
+            },
+
+            IntervalRelation::Finishing{ disjunct, overlapping } => {
+                assert!(existing.0.lower == disjunct.lower);
+                assert!(existing.0.upper == overlapping.upper);
+                assert!(key == overlapping);
+
+                let ex_clone = existing.1.clone();
+                existing.0.lower = overlapping.lower;
+                existing.1 = unify_fn(ex_clone.clone(), value);
+
+                disjunct.upper
+            },
+
+              IntervalRelation::Equal(_)
+            | IntervalRelation::Touching{ .. }
+            | IntervalRelation::Starting{ .. }
+            | IntervalRelation::Disjunct{ .. } => panic!("Impossible!"),
+        }
+    }
+
     // TODO: Check for extra clone()s here
     // TODO: For multiple insertions we could use splice
     fn insert_and_unify_single<F>(
@@ -150,7 +274,7 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
     }
 
     pub fn insert_and_unify<F>(&mut self, key: Interval<K>, value: V, unify: F)
-        where F : FnMut(Unification<V>) -> V {
+        where F : FnMut(Unification<V>) -> V + Clone {
 
         if self.intervals.is_empty() {
             self.intervals.push((key, value));
@@ -170,8 +294,29 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
             }
             else {
                 // Intersects with more entries
-                // TODO: Implement
-                unimplemented!();
+                assert!(range.len() >= 2);
+
+                let (mut lower, off) = self.insert_and_unify_single_lower(
+                    range.start, key.clone(), value.clone(), unify.clone());
+                let last_upper = self.insert_and_unify_single_upper(
+                    range.end + off - 1, key, value.clone(), unify);
+
+                // TODO: Fix shifting...
+                let mut idx = range.start + off;
+                for _ in (range.start + off)..(range.end + off - 1) {
+                    let upper = self.intervals[idx].0.lower.touching().unwrap();
+                    let between = Interval::with_bounds(lower, upper);
+                    if !between.is_empty() {
+                        self.intervals.insert(idx, (between, value.clone()));
+                    }
+                    lower = self.intervals[idx + 1].0.upper.touching().unwrap();
+                    idx += 2;
+                }
+
+                let between = Interval::with_bounds(lower, last_upper);
+                if !between.is_empty() {
+                    self.intervals.insert(idx, (between, value));
+                }
             }
         }
     }
