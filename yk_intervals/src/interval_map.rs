@@ -46,13 +46,12 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                     assert!(existing.0 == overlapping);
                     assert!(key.lower == first_disjunct.lower);
                     assert!(key.upper == second_disjunct.upper);
-                    assert!(idx > 0);
 
                     // Unify to the existing
                     existing.1 = unify_fn(existing.1.clone(), value.clone());
                     // Add the sides (first the latter one so the indicies don't shift)
                     self.intervals.insert(idx + 1, (second_disjunct, value.clone()));
-                    self.intervals.insert(idx - 1, (first_disjunct, value));
+                    self.intervals.insert(idx, (first_disjunct, value));
                 }
                 else {
                     // The newly added interval is completely inside the existing one
@@ -93,8 +92,8 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                     existing.0.lower = second_disjunct.lower;
                     // Add two extra intervals before that
                     let ex_clone = existing.1.clone();
-                    self.intervals.insert(idx, (overlapping, unify_fn(ex_clone.clone(), value.clone())));
-                    self.intervals.insert(idx, (first_disjunct, ex_clone));
+                    self.intervals.insert(idx, (overlapping, unify_fn(ex_clone, value.clone())));
+                    self.intervals.insert(idx, (first_disjunct, value));
                 }
             },
 
@@ -148,7 +147,7 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
         }
     }
 
-    pub fn insert_and_unify<F>(&mut self, key: Interval<K>, value: V, mut unify: F)
+    pub fn insert_and_unify<F>(&mut self, key: Interval<K>, value: V, unify: F)
         where F : FnMut(Unification<V>) -> V {
 
         if self.intervals.is_empty() {
@@ -272,5 +271,33 @@ mod interval_map_tests {
         let mut map = ivmap_raw![5..7 => vec![1], 12..15 => vec![1]];
         map.insert_and_unify(ri(15..19), vec![2], test_unify);
         assert_eq!(map, ivmap![5..7 => vec![1], 12..15 => vec![1], 15..19 => vec![2]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_equal() {
+        let mut map = ivmap_raw![5..7 => vec![1]];
+        map.insert_and_unify(ri(5..7), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..7 => vec![1, 2]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_containing_inserted() {
+        let mut map = ivmap_raw![3..9 => vec![1]];
+        map.insert_and_unify(ri(5..7), vec![2], test_unify);
+        assert_eq!(map, ivmap![3..5 => vec![1], 5..7 => vec![1, 2], 7..9 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_containing_existing() {
+        let mut map = ivmap_raw![5..7 => vec![1]];
+        map.insert_and_unify(ri(3..9), vec![2], test_unify);
+        assert_eq!(map, ivmap![3..5 => vec![2], 5..7 => vec![1, 2], 7..9 => vec![2]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_overlapping_left() {
+        let mut map = ivmap_raw![5..9 => vec![1]];
+        map.insert_and_unify(ri(2..7), vec![2], test_unify);
+        assert_eq!(map, ivmap![2..5 => vec![2], 5..7 => vec![1, 2], 7..9 => vec![1]]);
     }
 }
