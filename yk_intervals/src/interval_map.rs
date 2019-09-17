@@ -80,7 +80,7 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                     // Add two extra intervals after that
                     let ex_clone = existing.1.clone();
                     self.intervals.insert(idx + 1, (overlapping, unify_fn(ex_clone.clone(), value.clone())));
-                    self.intervals.insert(idx + 2, (second_disjunct, ex_clone));
+                    self.intervals.insert(idx + 2, (second_disjunct, value));
                 }
                 else {
                     assert!(key.lower == first_disjunct.lower);
@@ -299,5 +299,12 @@ mod interval_map_tests {
         let mut map = ivmap_raw![5..9 => vec![1]];
         map.insert_and_unify(ri(2..7), vec![2], test_unify);
         assert_eq!(map, ivmap![2..5 => vec![2], 5..7 => vec![1, 2], 7..9 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_single_overlapping_right() {
+        let mut map = ivmap_raw![5..9 => vec![1]];
+        map.insert_and_unify(ri(7..12), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..7 => vec![1], 7..9 => vec![1, 2], 9..12 => vec![2]]);
     }
 }
