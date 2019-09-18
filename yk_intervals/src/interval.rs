@@ -6,7 +6,7 @@
 use crate::bound::{LowerBound, UpperBound};
 
 /// Represents a generic interval
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Interval<T> {
     pub lower: LowerBound<T>,
     pub upper: UpperBound<T>,
@@ -68,6 +68,43 @@ impl <T> Interval<T> {
 
     pub fn full() -> Self {
         Self::with_bounds(LowerBound::Unbounded, UpperBound::Unbounded)
+    }
+}
+
+/**
+ * Debug-print an interval.
+ */
+impl <T> std::fmt::Debug for Interval<T> where T : std::fmt::Debug {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (match &self.lower {
+            LowerBound::Excluded(x) => {
+                write!(f, "(")?;
+                x.fmt(f)
+            },
+            LowerBound::Included(x) => {
+                write!(f, "[")?;
+                x.fmt(f)
+            },
+            LowerBound::Unbounded => {
+                write!(f, "(-infty")
+            },
+        })?;
+
+        write!(f, "; ")?;
+
+        (match &self.upper {
+            UpperBound::Excluded(x) => {
+                x.fmt(f)?;
+                write!(f, ")")
+            },
+            UpperBound::Included(x) => {
+                x.fmt(f)?;
+                write!(f, "]")
+            },
+            UpperBound::Unbounded => {
+                write!(f, "+infty)")
+            },
+        })
     }
 }
 

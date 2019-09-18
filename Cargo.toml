@@ -2,4 +2,5 @@
 
 members = [
     "yk_intervals",
+    "yk_regex_parse"
 ]
