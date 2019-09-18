@@ -522,4 +522,25 @@ mod interval_map_tests {
         map.insert_and_unify(ri(5..19), vec![2], test_unify);
         assert_eq!(map, ivmap![1..3 => vec![1], 5..7 => vec![1, 2], 7..9 => vec![2], 9..12 => vec![1, 2], 12..14 => vec![2], 14..15 => vec![1, 2], 15..17 => vec![1, 2], 17..18 => vec![2], 18..19 => vec![1, 2], 21..24 => vec![1]]);
     }
+
+    #[test]
+    fn insert_into_map_cover_many_touching_exactly() {
+        let mut map = ivmap_raw![1..3 => vec![1], 5..7 => vec![1], 7..9 => vec![1], 9..12 => vec![1], 12..14 => vec![1], 14..15 => vec![1], 15..17 => vec![1], 18..19 => vec![1]];
+        map.insert_and_unify(ri(5..17), vec![2], test_unify);
+        assert_eq!(map, ivmap![1..3 => vec![1], 5..7 => vec![1, 2], 7..9 => vec![1, 2], 9..12 => vec![1, 2], 12..14 => vec![1, 2], 14..15 => vec![1, 2], 15..17 => vec![1, 2], 18..19 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_two_start_intersect() {
+        let mut map = ivmap_raw![1..3 => vec![1], 5..7 => vec![1], 9..12 => vec![1], 14..15 => vec![1]];
+        map.insert_and_unify(ri(5..10), vec![2], test_unify);
+        assert_eq!(map, ivmap![1..3 => vec![1], 5..7 => vec![1, 2], 7..9 => vec![2], 9..10 => vec![1, 2], 10..12 => vec![1], 14..15 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_two_intersect_finish() {
+        let mut map = ivmap_raw![1..3 => vec![1], 5..7 => vec![1], 9..12 => vec![1], 14..15 => vec![1]];
+        map.insert_and_unify(ri(6..12), vec![2], test_unify);
+        assert_eq!(map, ivmap![1..3 => vec![1], 5..6 => vec![1], 6..7 => vec![1, 2], 7..9 => vec![2], 9..12 => vec![1, 2], 14..15 => vec![1]]);
+    }
 }
