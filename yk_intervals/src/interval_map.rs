@@ -75,7 +75,7 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
 
                 existing.1 = unify_fn(existing.1.clone(), value.clone());
 
-                (disjunct.lower, 1)
+                (disjunct.lower, 0)
             },
 
               IntervalRelation::Equal(_)
@@ -122,19 +122,17 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                 existing.0.lower = second_disjunct.lower;
                 // Add the extra overlappinginterval before that
                 let ex_clone = existing.1.clone();
-                self.intervals.insert(idx, (overlapping, unify_fn(ex_clone, value.clone())));
+                self.intervals.insert(idx, (overlapping, unify_fn(ex_clone, value)));
 
                 first_disjunct.upper
             },
 
             IntervalRelation::Finishing{ disjunct, overlapping } => {
-                assert!(existing.0.lower == disjunct.lower);
-                assert!(existing.0.upper == overlapping.upper);
-                assert!(key == overlapping);
+                assert!(existing.0 == overlapping);
+                assert!(key.upper == overlapping.upper);
 
                 let ex_clone = existing.1.clone();
-                existing.0.lower = overlapping.lower;
-                existing.1 = unify_fn(ex_clone.clone(), value);
+                existing.1 = unify_fn(ex_clone, value);
 
                 disjunct.upper
             },
@@ -301,21 +299,20 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                 let last_upper = self.insert_and_unify_single_upper(
                     range.end + off - 1, key, value.clone(), unify);
 
-                // TODO: Fix shifting...
                 let mut idx = range.start + off;
                 for _ in (range.start + off)..(range.end + off - 1) {
-                    let upper = self.intervals[idx].0.lower.touching().unwrap();
+                    let upper = self.intervals[idx + 1].0.lower.touching().unwrap();
                     let between = Interval::with_bounds(lower, upper);
-                    if !between.is_empty() {
-                        self.intervals.insert(idx, (between, value.clone()));
-                    }
                     lower = self.intervals[idx + 1].0.upper.touching().unwrap();
+                    if !between.is_empty() {
+                        self.intervals.insert(idx + 1, (between, value.clone()));
+                    }
                     idx += 2;
                 }
 
                 let between = Interval::with_bounds(lower, last_upper);
                 if !between.is_empty() {
-                    self.intervals.insert(idx, (between, value));
+                    self.intervals.insert(idx + 1, (between, value));
                 }
             }
         }
@@ -407,6 +404,20 @@ mod interval_map_tests {
     }
 
     #[test]
+    fn insert_into_map_disjunct_between() {
+        let mut map = ivmap_raw![5..7 => vec![1], 12..15 => vec![1]];
+        map.insert_and_unify(ri(9..11), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..7 => vec![1], 9..11 => vec![2], 12..15 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_disjunct_between_touch() {
+        let mut map = ivmap_raw![5..7 => vec![1], 12..15 => vec![1]];
+        map.insert_and_unify(ri(7..12), vec![2], test_unify);
+        assert_eq!(map, ivmap![5..7 => vec![1], 7..12 => vec![2], 12..15 => vec![1]]);
+    }
+
+    #[test]
     fn insert_into_map_disjunct_after() {
         let mut map = ivmap_raw![5..7 => vec![1], 12..15 => vec![1]];
         map.insert_and_unify(ri(17..19), vec![2], test_unify);
@@ -481,5 +492,12 @@ mod interval_map_tests {
         let mut map = ivmap_raw![8..11 => vec![1]];
         map.insert_and_unify(ri(5..11), vec![2], test_unify);
         assert_eq!(map, ivmap![5..8 => vec![2], 8..11 => vec![1, 2]]);
+    }
+
+    #[test]
+    fn insert_into_map_cover_two_exactly() {
+        let mut map = ivmap_raw![1..3 => vec![1], 5..7 => vec![1], 9..12 => vec![1], 14..15 => vec![1]];
+        map.insert_and_unify(ri(5..12), vec![2], test_unify);
+        assert_eq!(map, ivmap![1..3 => vec![1], 5..7 => vec![1, 2], 7..9 => vec![2], 9..12 => vec![1, 2], 14..15 => vec![1]]);
     }
 }
