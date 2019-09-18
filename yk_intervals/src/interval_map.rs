@@ -271,7 +271,7 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
         }
     }
 
-    pub fn insert_and_unify<F>(&mut self, key: Interval<K>, value: V, unify: F)
+    pub fn insert_and_unify<F>(&mut self, key: Interval<K>, value: V, mut unify: F)
         where F : FnMut(Unification<V>) -> V + Clone {
 
         if self.intervals.is_empty() {
@@ -297,22 +297,27 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                 let (mut lower, off) = self.insert_and_unify_single_lower(
                     range.start, key.clone(), value.clone(), unify.clone());
                 let last_upper = self.insert_and_unify_single_upper(
-                    range.end + off - 1, key, value.clone(), unify);
+                    range.end + off - 1, key, value.clone(), unify.clone());
 
-                let mut idx = range.start + off;
-                for _ in (range.start + off)..(range.end + off - 1) {
-                    let upper = self.intervals[idx + 1].0.lower.touching().unwrap();
+                let mut idx = range.start + off + 1;
+                for _ in range.start..(range.end - 2) {
+                    // Unify values
+                    let val = self.intervals[idx].1.clone();
+                    self.intervals[idx].1 = unify(Unification{ existing: val, inserted: value.clone() });
+
+                    // Add the interval in between
+                    let upper = self.intervals[idx].0.lower.touching().unwrap();
                     let between = Interval::with_bounds(lower, upper);
-                    lower = self.intervals[idx + 1].0.upper.touching().unwrap();
+                    lower = self.intervals[idx].0.upper.touching().unwrap();
                     if !between.is_empty() {
-                        self.intervals.insert(idx + 1, (between, value.clone()));
+                        self.intervals.insert(idx, (between, value.clone()));
                     }
                     idx += 2;
                 }
 
                 let between = Interval::with_bounds(lower, last_upper);
                 if !between.is_empty() {
-                    self.intervals.insert(idx + 1, (between, value));
+                    self.intervals.insert(idx, (between, value));
                 }
             }
         }
@@ -499,5 +504,12 @@ mod interval_map_tests {
         let mut map = ivmap_raw![1..3 => vec![1], 5..7 => vec![1], 9..12 => vec![1], 14..15 => vec![1]];
         map.insert_and_unify(ri(5..12), vec![2], test_unify);
         assert_eq!(map, ivmap![1..3 => vec![1], 5..7 => vec![1, 2], 7..9 => vec![2], 9..12 => vec![1, 2], 14..15 => vec![1]]);
+    }
+
+    #[test]
+    fn insert_into_map_cover_many_even_exactly() {
+        let mut map = ivmap_raw![1..3 => vec![1], 5..7 => vec![1], 9..12 => vec![1], 14..15 => vec![1], 15..17 => vec![1], 18..19 => vec![1]];
+        map.insert_and_unify(ri(5..17), vec![2], test_unify);
+        assert_eq!(map, ivmap![1..3 => vec![1], 5..7 => vec![1, 2], 7..9 => vec![2], 9..12 => vec![1, 2], 12..14 => vec![2], 14..15 => vec![1, 2], 15..17 => vec![1, 2], 18..19 => vec![1]]);
     }
 }
