@@ -543,4 +543,11 @@ mod interval_map_tests {
         map.insert_and_unify(ri(6..12), vec![2], test_unify);
         assert_eq!(map, ivmap![1..3 => vec![1], 5..6 => vec![1], 6..7 => vec![1, 2], 7..9 => vec![2], 9..12 => vec![1, 2], 14..15 => vec![1]]);
     }
+
+    #[test]
+    fn insert_into_map_two_intersect_intersect() {
+        let mut map = ivmap_raw![1..3 => vec![1], 5..7 => vec![1], 9..12 => vec![1], 14..15 => vec![1]];
+        map.insert_and_unify(ri(6..10), vec![2], test_unify);
+        assert_eq!(map, ivmap![1..3 => vec![1], 5..6 => vec![1], 6..7 => vec![1, 2], 7..9 => vec![2], 9..10 => vec![1, 2], 10..12 => vec![1], 14..15 => vec![1]]);
+    }
 }
