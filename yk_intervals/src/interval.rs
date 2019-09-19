@@ -71,6 +71,12 @@ impl <T> Interval<T> {
     }
 }
 
+impl <T> Interval<T> where T : Clone {
+    pub fn singleton(value: T) -> Self {
+        Self::with_bounds(LowerBound::Included(value.clone()), UpperBound::Included(value))
+    }
+}
+
 /**
  * Debug-print an interval.
  */

@@ -18,8 +18,8 @@ impl <K, V> IntervalMap<K, V> {
 }
 
 pub struct Unification<V> {
-    existing: V,
-    inserted: V,
+    pub existing: V,
+    pub inserted: V,
 }
 
 impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
