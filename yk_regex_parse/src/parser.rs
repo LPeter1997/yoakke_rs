@@ -239,3 +239,65 @@ fn is_nonspecial_char(c: char) -> bool {
 fn is_special_char(c: char) -> bool {
     "()[]?*+|".contains(c)
 }
+
+// Tests ///////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod regex_parser_tests {
+    use super::*;
+
+    /**
+     * Helpers to construct results.
+     */
+
+    fn alt(first: Box<Node>, second: Box<Node>) -> Box<Node> {
+        Box::new(Node::Alternative{ first, second })
+    }
+
+    fn seq(first: Box<Node>, second: Box<Node>) -> Box<Node> {
+        Box::new(Node::Sequence{ first, second })
+    }
+
+    fn ch(c: char) -> Box<Node> {
+        Box::new(Node::Literal(c))
+    }
+
+    /**
+     * Actual tests.
+     */
+
+    #[test]
+    fn a_or_b() {
+        assert_eq!(parse(r"a|b"), Ok(alt(ch('a'), ch('b'))));
+    }
+
+    #[test]
+    fn a_or_b_or_c() {
+        assert_eq!(parse(r"a|b|c"), Ok(alt(ch('a'), alt(ch('b'), ch('c')))));
+    }
+
+    #[test]
+    fn ab() {
+        assert_eq!(parse(r"ab"), Ok(seq(ch('a'), ch('b'))));
+    }
+
+    #[test]
+    fn abc() {
+        assert_eq!(parse(r"abc"), Ok(seq(ch('a'), seq(ch('b'), ch('c')))));
+    }
+
+    #[test]
+    fn ab_or_c() {
+        assert_eq!(parse(r"ab|c"), Ok(alt(seq(ch('a'), ch('b')), ch('c'))));
+    }
+
+    #[test]
+    fn ab_or_cd() {
+        assert_eq!(parse(r"ab|cd"), Ok(alt(seq(ch('a'), ch('b')), seq(ch('c'), ch('d')))));
+    }
+
+    #[test]
+    fn a_b_or_c_d() {
+        assert_eq!(parse(r"a(b|c)d"), Ok(seq(ch('a'), seq(alt(ch('b'), ch('c')), ch('d')))));
+    }
+}

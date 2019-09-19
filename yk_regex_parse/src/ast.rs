@@ -4,6 +4,7 @@
 
 // TODO: Character classes, like [[:alpha:]], ...
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
     Alternative{
         first: Box<Node>,
@@ -28,11 +29,13 @@ pub enum Node {
     Literal(char),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Quantifier {
     AtLeast(usize),
     Between(usize, usize),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupingElement {
     Literal(char),
     Range(char, char),
