@@ -258,8 +258,32 @@ mod regex_parser_tests {
         Box::new(Node::Sequence{ first, second })
     }
 
+    fn grp(negated: bool, elements: Vec<GroupingElement>) -> Box<Node> {
+        Box::new(Node::Grouping{ negated, elements })
+    }
+
     fn ch(c: char) -> Box<Node> {
         Box::new(Node::Literal(c))
+    }
+
+    fn ge_ch(c: char) -> GroupingElement {
+        GroupingElement::Literal(c)
+    }
+
+    fn ge_rng(a: char, b: char) -> GroupingElement {
+        GroupingElement::Range(a, b)
+    }
+
+    fn star(subnode: Box<Node>) -> Box<Node> {
+        Box::new(Node::Quantified{ subnode, quantifier: Quantifier::AtLeast(0) })
+    }
+
+    fn plus(subnode: Box<Node>) -> Box<Node> {
+        Box::new(Node::Quantified{ subnode, quantifier: Quantifier::AtLeast(1) })
+    }
+
+    fn qmark(subnode: Box<Node>) -> Box<Node> {
+        Box::new(Node::Quantified{ subnode, quantifier: Quantifier::Between(0, 1) })
     }
 
     /**
@@ -299,5 +323,30 @@ mod regex_parser_tests {
     #[test]
     fn a_b_or_c_d() {
         assert_eq!(parse(r"a(b|c)d"), Ok(seq(ch('a'), seq(alt(ch('b'), ch('c')), ch('d')))));
+    }
+
+    #[test]
+    fn abc_group() {
+        assert_eq!(parse(r"[abc]"), Ok(grp(false, vec![ge_ch('a'), ge_ch('b'), ge_ch('c')])));
+    }
+
+    #[test]
+    fn a_to_c_and_f_to_h_group() {
+        assert_eq!(parse(r"[a-cf-h]"), Ok(grp(false, vec![ge_rng('a', 'c'), ge_rng('f', 'h')])));
+    }
+
+    #[test]
+    fn a_zero_or_more() {
+        assert_eq!(parse(r"a*"), Ok(star(ch('a'))));
+    }
+
+    #[test]
+    fn a_then_b_zero_or_more() {
+        assert_eq!(parse(r"ab*"), Ok(seq(ch('a'), star(ch('b')))));
+    }
+
+    #[test]
+    fn ab_zero_or_more() {
+        assert_eq!(parse(r"(ab)*"), Ok(star(seq(ch('a'), ch('b')))));
     }
 }
