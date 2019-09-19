@@ -86,6 +86,10 @@ pub fn parse(source: &str) -> Result<Box<Node>, ()> {
 
 type ParseResult<'a, T> = Result<(T, Chars<'a>), ()>;
 
+// TODO: There could be a lit cleaned up VIA pattern guards, but the stabilization
+// of bind-by-move is two versions away:
+// https://github.com/rust-lang/rust/pull/63118
+
 fn parse_alternative(it: Chars<'_>) -> ParseResult<'_, Box<Node>> {
     let (first, it) = parse_sequence(it)?;
     if let Some(('|', it)) = it.next() {
@@ -155,7 +159,12 @@ fn parse_atom(it: Chars<'_>) -> ParseResult<'_, Box<Node>> {
         },
 
         Some((c, it)) => {
-            unimplemented!();
+            if is_nonspecial_char(c) {
+                Ok((Box::new(Node::Literal(c)), it))
+            }
+            else {
+                Err(())
+            }
         },
 
         None => Err(()),
@@ -163,29 +172,70 @@ fn parse_atom(it: Chars<'_>) -> ParseResult<'_, Box<Node>> {
 }
 
 fn parse_grouping(it: Chars<'_>) -> ParseResult<'_, Box<Node>> {
-    unimplemented!();
+    // TODO: Negated value
+    let (first, mut it) = parse_grouping_element_init(it)?;
+    let mut elements = vec![first];
+    while let Ok((nth, nextit)) = parse_grouping_element(it.clone()) {
+        it = nextit;
+        elements.push(nth);
+    }
+    Ok((Box::new(Node::Grouping{ negated: false, elements }), it))
 }
 
 fn parse_grouping_element_init(it: Chars<'_>) -> ParseResult<'_, GroupingElement> {
-    unimplemented!();
+    let (left, it) = parse_grouping_atom_init(it)?;
+    if let Some(('-', it)) = it.next() {
+        if let Ok((right, it)) = parse_grouping_atom(it) {
+            return Ok((GroupingElement::Range(left, right), it));
+        }
+    }
+    return Ok((GroupingElement::Literal(left), it));
 }
 
 fn parse_grouping_element(it: Chars<'_>) -> ParseResult<'_, GroupingElement> {
-    unimplemented!();
+    let (left, it) = parse_grouping_atom(it)?;
+    if let Some(('-', it)) = it.next() {
+        if let Ok((right, it)) = parse_grouping_atom(it) {
+            return Ok((GroupingElement::Range(left, right), it));
+        }
+    }
+    return Ok((GroupingElement::Literal(left), it));
 }
 
 fn parse_grouping_atom_init(it: Chars<'_>) -> ParseResult<'_, char> {
-    unimplemented!();
+    if let Some((']', it)) = it.next() {
+        Ok((']', it))
+    }
+    else {
+        parse_grouping_atom(it)
+    }
 }
 
 fn parse_grouping_atom(it: Chars<'_>) -> ParseResult<'_, char> {
-    unimplemented!();
+    match it.next() {
+        Some((']', _)) => Err(()),
+
+        Some(('\\', it)) => {
+            unimplemented!();
+        },
+
+        Some((c, it)) => {
+            if is_nonspecial_char(c) {
+                Ok((c, it))
+            }
+            else {
+                Err(())
+            }
+        },
+
+        None => Err(()),
+    }
 }
 
-fn parse_nonspecial_char(it: Chars<'_>) -> ParseResult<'_, char> {
-    unimplemented!();
+fn is_nonspecial_char(c: char) -> bool {
+    !c.is_control() && !is_special_char(c)
 }
 
-fn parse_special_char(it: Chars<'_>) -> ParseResult<'_, char> {
-    unimplemented!();
+fn is_special_char(c: char) -> bool {
+    "()[]?*+|".contains(c)
 }
