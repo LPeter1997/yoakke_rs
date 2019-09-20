@@ -169,7 +169,7 @@ impl <T> PartialOrd<LowerBound<T>> for UpperBound<T> where T : Ord {
 
 /// Conversion from std::ops::Bound to a lower bound
 impl <T> From<std::ops::Bound<T>> for LowerBound<T> {
-    fn from(bound: std::ops::Bound<T>) -> LowerBound<T> {
+    fn from(bound: std::ops::Bound<T>) -> Self {
         match bound {
             std::ops::Bound::Excluded(x) => LowerBound::Excluded(x),
             std::ops::Bound::Included(x) => LowerBound::Included(x),
@@ -180,7 +180,7 @@ impl <T> From<std::ops::Bound<T>> for LowerBound<T> {
 
 /// Conversion from std::ops::Bound to an upper bound
 impl <T> From<std::ops::Bound<T>> for UpperBound<T> {
-    fn from(bound: std::ops::Bound<T>) -> UpperBound<T> {
+    fn from(bound: std::ops::Bound<T>) -> Self {
         match bound {
             std::ops::Bound::Excluded(x) => UpperBound::Excluded(x),
             std::ops::Bound::Included(x) => UpperBound::Included(x),
