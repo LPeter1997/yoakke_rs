@@ -2,7 +2,7 @@
  * Generic dense deterministic finite automaton representation.
  */
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use crate::nfa::Automaton as NFA;
 use yk_intervals::{Interval, IntervalMap};
 
@@ -36,8 +36,28 @@ impl <T> Automaton<T> {
     }
 }
 
+/**
+ * Determinization.
+ */
+
 impl <T> From<NFA<T>> for Automaton<T> {
     fn from(nfa: NFA<T>) -> Self {
-        unimplemented!();
+        let mut dfa = Self::new();
+        let mut nfa_set_to_dfa_state = BTreeMap::new();
+        let mut stk = Vec::new();
+
+        // We need the start state's mapping
+        {
+            let start_states = nfa.epsilon_closure(&nfa.start);
+            let first = nfa_set_to_dfa_state.entry(start_states).or_insert(dfa.start);
+            stk.push(first);
+        }
+
+        while !stk.is_empty() {
+            let top = stk.pop().unwrap();
+            // TODO
+        }
+
+        dfa
     }
 }

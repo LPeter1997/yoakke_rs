@@ -2,18 +2,18 @@
  * Generic dense nondeterministic finite automaton representation.
  */
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use yk_intervals::{Interval, IntervalMap};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct State(usize);
 
 pub struct Automaton<T> {
     state_counter: usize,
     pub start: State,
-    accepting: HashSet<State>,
-    transitions: HashMap<State, IntervalMap<T, HashSet<State>>>,
-    epsilon: HashMap<State, HashSet<State>>,
+    accepting: BTreeSet<State>,
+    transitions: BTreeMap<State, IntervalMap<T, BTreeSet<State>>>,
+    epsilon: BTreeMap<State, BTreeSet<State>>,
 }
 
 impl <T> Automaton<T> {
@@ -21,9 +21,9 @@ impl <T> Automaton<T> {
         Self{
             state_counter: 0,
             start: State(0),
-            accepting: HashSet::new(),
-            transitions: HashMap::new(),
-            epsilon: HashMap::new(),
+            accepting: BTreeSet::new(),
+            transitions: BTreeMap::new(),
+            epsilon: BTreeMap::new(),
         }
     }
 
@@ -37,9 +37,9 @@ impl <T> Automaton<T> {
     }
 
     // TODO: Return references (HashSet<&State>) instead? Makes more sense.
-    pub fn epsilon_closure(&self, state: &State) -> HashSet<State> {
-        let mut result = HashSet::new();
-        let mut touched = HashSet::new();
+    pub fn epsilon_closure(&self, state: &State) -> BTreeSet<State> {
+        let mut result = BTreeSet::new();
+        let mut touched = BTreeSet::new();
 
         let mut stk = vec![state];
         while !stk.is_empty() {
@@ -60,7 +60,7 @@ impl <T> Automaton<T> {
     }
 
     pub fn add_epsilon_transition(&mut self, from: State, to: State) {
-        let from_map = self.epsilon.entry(from).or_insert(HashSet::new());
+        let from_map = self.epsilon.entry(from).or_insert(BTreeSet::new());
         from_map.insert(to);
     }
 }
@@ -68,7 +68,7 @@ impl <T> Automaton<T> {
 impl <T> Automaton<T> where T : Clone + Ord {
     pub fn add_transition(&mut self, from: State, on: Interval<T>, to: State) {
         let from_map = self.transitions.entry(from).or_insert(IntervalMap::new());
-        let mut hs = HashSet::new();
+        let mut hs = BTreeSet::new();
         hs.insert(to);
         from_map.insert_and_unify(on, hs, |mut unification| {
             for v in unification.inserted {
