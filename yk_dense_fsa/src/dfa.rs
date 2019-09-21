@@ -84,10 +84,10 @@ impl <T> From<NFA<T>> for Automaton<T> where T : Clone + Ord {
                     dfa.add_transition(dfa_state, on, *dfa_to);
                 }
                 else {
-                    let dfa_state = dfa.unique_state();
-                    nfa_set_to_dfa_state.insert(to.clone(), dfa_state);
-                    dfa.add_transition(dfa_state, on, dfa_state);
-                    stk.push((to, dfa_state));
+                    let dfa_state_to = dfa.unique_state();
+                    nfa_set_to_dfa_state.insert(to.clone(), dfa_state_to);
+                    dfa.add_transition(dfa_state, on, dfa_state_to);
+                    stk.push((to, dfa_state_to));
                 }
             }
         }
@@ -96,34 +96,4 @@ impl <T> From<NFA<T>> for Automaton<T> where T : Clone + Ord {
     }
 }
 
-#[cfg(test)]
-mod testing {
-use super::*;
-
-#[test]
-fn foo_bar_baz() {
-    use yk_intervals::{LowerBound, UpperBound};
-
-    let mut nf = NFA::new();
-
-    let a = nf.start;
-    let b = nf.unique_state();
-    let c = nf.unique_state();
-    let d = nf.unique_state();
-    let e = nf.unique_state();
-    let f = nf.unique_state();
-    let g = nf.unique_state();
-
-    nf.add_transition(b, Interval::with_bounds(LowerBound::Included(1), UpperBound::Included(10)), g);
-    nf.add_transition(c, Interval::with_bounds(LowerBound::Included(5), UpperBound::Included(15)), f);
-    nf.add_transition(d, Interval::with_bounds(LowerBound::Included(3), UpperBound::Included(7)), e);
-
-    nf.add_epsilon_transition(a, b);
-    nf.add_epsilon_transition(a, c);
-    nf.add_epsilon_transition(a, d);
-
-    let df = Automaton::from(nf);
-
-    println!("{:?}", df);
-}
-}
+// TODO: Tests
