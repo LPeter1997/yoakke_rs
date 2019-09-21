@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use yk_intervals::{Interval, IntervalMap, IntervalSet, LowerBound, UpperBound};
 use yk_regex_parse as regex;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct State(usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,12 +93,19 @@ impl <T> Automaton<T> where T : Clone + Ord {
  * Thompson's-construction.
  */
 
+impl Automaton<char> {
+    pub fn add_regex(&mut self, rx: &regex::Node) -> (State, State) {
+        let (from, to) = thompson_construct(self, rx);
+        self.add_epsilon_transition(self.start, from);
+        self.add_accepting(to);
+        (from, to)
+    }
+}
+
 impl From<regex::Node> for Automaton<char> {
     fn from(rx: regex::Node) -> Self {
-        let mut nf = Automaton::new();
-        let (from, to) = thompson_construct(&mut nf, &rx);
-        nf.add_epsilon_transition(nf.start, from);
-        nf.add_accepting(to);
+        let mut nf = Self::new();
+        nf.add_regex(&rx);
         nf
     }
 }
@@ -245,3 +252,6 @@ fn thompson_construct_repeat(nfa: &mut Automaton<char>,
 
     (start, last)
 }
+
+// TODO: An NFA could be constructed trivially from a DFA (so we could have From<DFA>)
+// implemented here. That could be used for some optimizations.
