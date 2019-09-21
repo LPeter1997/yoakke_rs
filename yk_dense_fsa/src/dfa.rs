@@ -2,7 +2,7 @@
  * Generic dense deterministic finite automaton representation.
  */
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use crate::nfa::Automaton as NFA;
 use yk_intervals::{Interval, IntervalMap};
 
@@ -79,7 +79,13 @@ impl <T> From<NFA<T>> for Automaton<T> where T : Clone + Ord {
             for nf_state in nfa_states {
                 if let Some(trs) = nfa.transitions_from(&nf_state) {
                     for (iv, dest_states) in trs {
-                        transitions.insert_and_unify(iv.clone(), dest_states.clone(), |mut unif| {
+                        // Expand 'dest_states' with epsilon closure
+                        let mut ds = BTreeSet::new();
+                        for s in dest_states {
+                            ds.extend(nfa.epsilon_closure(&s));
+                        }
+
+                        transitions.insert_and_unify(iv.clone(), ds, |mut unif| {
                             unif.existing.extend(unif.inserted);
                             unif.existing
                         });

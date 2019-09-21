@@ -96,7 +96,7 @@ impl <T> Automaton<T> where T : Clone + Ord {
 impl From<regex::Node> for Automaton<char> {
     fn from(rx: regex::Node) -> Self {
         let mut nf = Automaton::new();
-        let (from, to) = thompson_construct(&mut nf, rx);
+        let (from, to) = thompson_construct(&mut nf, &rx);
         nf.add_epsilon_transition(nf.start, from);
         nf.add_accepting(to);
         nf

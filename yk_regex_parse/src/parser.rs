@@ -77,9 +77,9 @@ impl <'a> Chars<'a> {
  * Actual parsing.
  */
 
-pub fn parse(source: &str) -> Result<Box<Node>, ()> {
+pub fn parse(source: &str) -> Result<Node, ()> {
     match parse_alternative(Chars(source.chars())) {
-        Ok((n, _)) => Ok(n),
+        Ok((n, _)) => Ok(*n),
         Err(v) => Err(v),
     }
 }
