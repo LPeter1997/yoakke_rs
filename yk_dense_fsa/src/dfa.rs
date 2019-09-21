@@ -63,7 +63,7 @@ impl <T, AcceptingValue> Automaton<T, AcceptingValue> where T : Clone + Ord {
  */
 
 impl <T, AcceptingValue> Automaton<T, AcceptingValue> where T : Clone + Ord, AcceptingValue : Clone {
-    pub fn from_nfa<F>(nfa: NFA<T, AcceptingValue>, unify: F) -> Self
+    pub fn from_nfa<F>(nfa: NFA<T, AcceptingValue>, mut unify: F) -> Self
         where F : FnMut(AcceptingValue, AcceptingValue) -> AcceptingValue {
 
         let mut dfa = Self::new();
@@ -74,13 +74,18 @@ impl <T, AcceptingValue> Automaton<T, AcceptingValue> where T : Clone + Ord, Acc
         {
             let start_states = nfa.epsilon_closure(&nfa.start);
             nfa_set_to_dfa_state.insert(start_states.clone(), dfa.start);
-            stk.push((start_states, dfa.start));
 
             // Accepting registration
-            if start_states.iter().any(|x| nfa.is_accepting(&x)) {
-                // TODO: Not this
-                dfa.add_accepting_with_value(dfa.start, val.clone());
+            let mut accepting_values = start_states.iter().filter_map(|x| nfa.accepting_value(x));
+            if let Some(accept) = accepting_values.next() {
+                let mut accept = accept.clone();
+                for v in accepting_values {
+                    accept = unify(accept, v.clone());
+                }
+                dfa.add_accepting_with_value(dfa.start, accept);
             }
+
+            stk.push((start_states, dfa.start));
         }
 
         while !stk.is_empty() {
@@ -115,9 +120,13 @@ impl <T, AcceptingValue> Automaton<T, AcceptingValue> where T : Clone + Ord, Acc
                     let dfa_state_to = dfa.unique_state();
 
                     // Accepting registration
-                    if to.iter().any(|x| nfa.is_accepting(&x)) {
-                        // TODO: Not this
-                        dfa.add_accepting(dfa_state_to);
+                    let mut accepting_values = to.iter().filter_map(|x| nfa.accepting_value(x));
+                    if let Some(accept) = accepting_values.next() {
+                        let mut accept = accept.clone();
+                        for v in accepting_values {
+                            accept = unify(accept, v.clone());
+                        }
+                        dfa.add_accepting_with_value(dfa_state_to, accept);
                     }
 
                     nfa_set_to_dfa_state.insert(to.clone(), dfa_state_to);
@@ -128,6 +137,14 @@ impl <T, AcceptingValue> Automaton<T, AcceptingValue> where T : Clone + Ord, Acc
         }
 
         dfa
+    }
+}
+
+impl <T, AcceptingValue> From<NFA<T, AcceptingValue>> for Automaton<T, AcceptingValue>
+    where T : Clone + Ord, AcceptingValue : Clone + Default {
+
+    fn from(nf: NFA<T, AcceptingValue>) -> Self {
+        Self::from_nfa(nf, |_, _| AcceptingValue::default())
     }
 }
 
