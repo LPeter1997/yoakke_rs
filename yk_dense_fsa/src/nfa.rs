@@ -90,15 +90,51 @@ impl <T> Automaton<T> where T : Clone + Ord {
 }
 
 /**
- * Thompson-construction.
+ * Thompson's-construction.
  */
-
-fn thompson_construct(rx: regex::Node) -> (State, State) {
-
-}
 
 impl From<regex::Node> for Automaton<char> {
     fn from(rx: regex::Node) -> Self {
-
+        let mut nf = Automaton::new();
+        let (from, to) = thompson_construct(&mut nf, rx);
+        nf.add_epsilon_transition(nf.start, from);
+        nf.add_accepting(to);
+        nf
     }
+}
+
+fn thompson_construct(nfa: &mut Automaton<char>,
+    rx: regex::Node) -> (State, State) {
+
+    unimplemented!();
+}
+
+fn thompson_construct_alternative(nfa: &mut Automaton<char>,
+    left: regex::Node, right: regex::Node) -> (State, State) {
+
+    unimplemented!();
+}
+
+fn thompson_construct_sequence(nfa: &mut Automaton<char>,
+    left: regex::Node, right: regex::Node) -> (State, State) {
+
+    unimplemented!();
+}
+
+fn thompson_construct_quantified(nfa: &mut Automaton<char>,
+    subnode: regex::Node, quantifier: regex::Quantifier) -> (State, State) {
+
+    unimplemented!();
+}
+
+fn thompson_construct_grouping(nfa: &mut Automaton<char>,
+    negated: bool, elements: Vec<regex::GroupingElement>) -> (State, State) {
+
+    unimplemented!();
+}
+
+fn thompson_construct_literal(nfa: &mut Automaton<char>,
+    ch: char) -> (State, State) {
+
+    unimplemented!();
 }
