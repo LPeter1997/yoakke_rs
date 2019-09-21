@@ -4,6 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use yk_intervals::{Interval, IntervalMap};
+use yk_regex_parse as regex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct State(usize);
@@ -31,6 +32,10 @@ impl <T> Automaton<T> {
     pub fn unique_state(&mut self) -> State {
         self.state_counter += 1;
         State(self.state_counter)
+    }
+
+    pub fn add_accepting(&mut self, state: State) {
+        self.accepting.insert(state);
     }
 
     pub fn is_accepting(&self, state: &State) -> bool {
@@ -81,5 +86,19 @@ impl <T> Automaton<T> where T : Clone + Ord {
             }
             unification.existing
         });
+    }
+}
+
+/**
+ * Thompson-construction.
+ */
+
+fn thompson_construct(rx: regex::Node) -> (State, State) {
+
+}
+
+impl From<regex::Node> for Automaton<char> {
+    fn from(rx: regex::Node) -> Self {
+
     }
 }

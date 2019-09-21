@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 yk_intervals = { path = "../yk_intervals" }
+yk_regex_parse = { path = "../yk_regex_parse" }

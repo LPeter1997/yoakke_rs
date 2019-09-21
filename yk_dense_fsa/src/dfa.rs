@@ -35,6 +35,10 @@ impl <T> Automaton<T> {
     pub fn is_accepting(&self, state: &State) -> bool {
         self.accepting.contains(state)
     }
+
+    pub fn add_accepting(&mut self, state: State) {
+        self.accepting.insert(state);
+    }
 }
 
 impl <T> Automaton<T> where T : Clone + Ord {
@@ -59,6 +63,11 @@ impl <T> From<NFA<T>> for Automaton<T> where T : Clone + Ord {
             let start_states = nfa.epsilon_closure(&nfa.start);
             nfa_set_to_dfa_state.insert(start_states.clone(), dfa.start);
             stk.push((start_states, dfa.start));
+
+            // Accepting registration
+            if nfa.is_accepting(&nfa.start) {
+                dfa.add_accepting(dfa.start);
+            }
         }
 
         while !stk.is_empty() {
@@ -85,6 +94,12 @@ impl <T> From<NFA<T>> for Automaton<T> where T : Clone + Ord {
                 }
                 else {
                     let dfa_state_to = dfa.unique_state();
+
+                    // Accepting registration
+                    if to.iter().any(|x| nfa.is_accepting(&x)) {
+                        dfa.add_accepting(dfa_state_to);
+                    }
+
                     nfa_set_to_dfa_state.insert(to.clone(), dfa_state_to);
                     dfa.add_transition(dfa_state, on, dfa_state_to);
                     stk.push((to, dfa_state_to));
