@@ -197,11 +197,11 @@ fn thompson_construct_grouping(nfa: &mut Automaton<char>,
     for elem in elements {
         match elem {
             regex::GroupingElement::Literal(ch) => {
-                ivs.insert(Interval::singleton(ch));
+                ivs.insert(Interval::singleton(*ch));
             },
 
             regex::GroupingElement::Range(cfrom, cto) => {
-                ivs.insert(Interval::with_bounds(LowerBound::Included(cfrom), UpperBound::Included(cto)));
+                ivs.insert(Interval::with_bounds(LowerBound::Included(*cfrom), UpperBound::Included(*cto)));
             },
         }
     }
@@ -210,13 +210,25 @@ fn thompson_construct_grouping(nfa: &mut Automaton<char>,
         ivs.invert();
     }
 
-    unimplemented!();
+    let start = nfa.unique_state();
+    let end = nfa.unique_state();
+
+    for iv in ivs {
+        nfa.add_transition(start, iv, end);
+    }
+
+    (start, end)
 }
 
 fn thompson_construct_literal(nfa: &mut Automaton<char>,
     ch: char) -> (State, State) {
 
-    unimplemented!();
+    let start = nfa.unique_state();
+    let end = nfa.unique_state();
+
+    nfa.add_transition(start, Interval::singleton(ch), end);
+
+    (start, end)
 }
 
 fn thompson_construct_repeat(nfa: &mut Automaton<char>,

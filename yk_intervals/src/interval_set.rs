@@ -189,6 +189,28 @@ impl <T> IntervalSet<T> where T : Clone {
     }
 }
 
+/**
+ * Iteration.
+ */
+
+impl <T> IntoIterator for IntervalSet<T> {
+    type Item = Interval<T>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.intervals.into_iter()
+    }
+}
+
+impl <'a, T> IntoIterator for &'a IntervalSet<T> {
+    type Item = &'a Interval<T>;
+    type IntoIter = std::slice::Iter<'a, Interval<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.intervals.as_slice().into_iter()
+    }
+}
+
 // Tests ///////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
