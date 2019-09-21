@@ -3,7 +3,7 @@
  */
 
 use std::collections::{BTreeMap, BTreeSet};
-use yk_intervals::{Interval, IntervalMap};
+use yk_intervals::{Interval, IntervalMap, IntervalSet, LowerBound, UpperBound};
 use yk_regex_parse as regex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -104,31 +104,111 @@ impl From<regex::Node> for Automaton<char> {
 }
 
 fn thompson_construct(nfa: &mut Automaton<char>,
-    rx: regex::Node) -> (State, State) {
+    rx: &regex::Node) -> (State, State) {
 
-    unimplemented!();
+    match rx {
+        regex::Node::Alternative{ first, second } =>
+            thompson_construct_alternative(nfa, first, second),
+
+        regex::Node::Sequence{ first, second } =>
+            thompson_construct_sequence(nfa, first, second),
+
+        regex::Node::Quantified{ subnode, quantifier } =>
+            thompson_construct_quantified(nfa, subnode, *quantifier),
+
+        regex::Node::Grouping{ negated, elements } =>
+            thompson_construct_grouping(nfa, *negated, elements),
+
+        regex::Node::Literal(ch) =>
+            thompson_construct_literal(nfa, *ch),
+    }
 }
 
 fn thompson_construct_alternative(nfa: &mut Automaton<char>,
-    left: regex::Node, right: regex::Node) -> (State, State) {
+    left: &regex::Node, right: &regex::Node) -> (State, State) {
 
-    unimplemented!();
+    let start = nfa.unique_state();
+    let end = nfa.unique_state();
+
+    let (l_s, l_e) = thompson_construct(nfa, left);
+    let (r_s, r_e) = thompson_construct(nfa, right);
+
+    nfa.add_epsilon_transition(start, l_s);
+    nfa.add_epsilon_transition(start, r_s);
+
+    nfa.add_epsilon_transition(l_e, end);
+    nfa.add_epsilon_transition(r_e, end);
+
+    (start, end)
 }
 
 fn thompson_construct_sequence(nfa: &mut Automaton<char>,
-    left: regex::Node, right: regex::Node) -> (State, State) {
+    left: &regex::Node, right: &regex::Node) -> (State, State) {
 
-    unimplemented!();
+    let (l_s, l_e) = thompson_construct(nfa, left);
+    let (r_s, r_e) = thompson_construct(nfa, right);
+
+    nfa.add_epsilon_transition(l_e, r_s);
+
+    (l_s, r_e)
 }
 
 fn thompson_construct_quantified(nfa: &mut Automaton<char>,
-    subnode: regex::Node, quantifier: regex::Quantifier) -> (State, State) {
+    subnode: &regex::Node, quantifier: regex::Quantifier) -> (State, State) {
 
-    unimplemented!();
+    match quantifier {
+        regex::Quantifier::AtLeast(count) => {
+            let (start, end) = thompson_construct_repeat(nfa, subnode, count);
+
+            // Allow looping on the last state
+            let (ls, le) = thompson_construct(nfa, subnode);
+            nfa.add_epsilon_transition(end, ls);
+            nfa.add_epsilon_transition(le, end);
+
+            (start, end)
+        },
+
+        regex::Quantifier::Between(least, most) => {
+            assert!(least <= most);
+
+            let (start, min) = thompson_construct_repeat(nfa, subnode, least);
+            let mut last = min;
+            let end = nfa.unique_state();
+
+            // From here we let every node skip to the end with an epsilon-transition
+            nfa.add_epsilon_transition(last, end);
+            for _ in 0..(most - least) {
+                let (s, e) = thompson_construct(nfa, subnode);
+                nfa.add_epsilon_transition(last, s);
+                last = e;
+                nfa.add_epsilon_transition(last, end);
+            }
+
+            (start, end)
+        }
+    }
 }
 
 fn thompson_construct_grouping(nfa: &mut Automaton<char>,
-    negated: bool, elements: Vec<regex::GroupingElement>) -> (State, State) {
+    negated: bool, elements: &Vec<regex::GroupingElement>) -> (State, State) {
+
+    let mut ivs = IntervalSet::new();
+
+    for elem in elements {
+        match elem {
+            regex::GroupingElement::Literal(ch) => {
+                ivs.insert(Interval::singleton(ch));
+            },
+
+            regex::GroupingElement::Range(cfrom, cto) => {
+                ivs.insert(Interval::with_bounds(LowerBound::Included(cfrom), UpperBound::Included(cto)));
+            },
+        }
+    }
+
+    if negated {
+        ivs.invert();
+    }
 
     unimplemented!();
 }
@@ -137,4 +217,19 @@ fn thompson_construct_literal(nfa: &mut Automaton<char>,
     ch: char) -> (State, State) {
 
     unimplemented!();
+}
+
+fn thompson_construct_repeat(nfa: &mut Automaton<char>,
+    node: &regex::Node, count: usize) -> (State, State) {
+
+    let start = nfa.unique_state();
+    let mut last = start;
+
+    for _ in 0..count {
+        let (s, e) = thompson_construct(nfa, node);
+        nfa.add_epsilon_transition(last, s);
+        last = e;
+    }
+
+    (start, last)
 }
