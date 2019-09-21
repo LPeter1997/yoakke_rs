@@ -95,17 +95,14 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
     }
 
     // Now we have the regexes, let's construct a DFA
-    let mut accept_to_variant = HashMap::new();
     let mut nfa = nfa::Automaton::new();
     for (variant, rx) in regexes {
-        let regex_ast = regex::parse(&rx).unwrap();
-        let (_, accepting) = nfa.add_regex(&regex_ast);
-
-        accept_to_variant.insert(accepting, variant);
+        let regex_ast = regex::parse(&rx).unwrap(); // TODO: Good error msg
+        nfa.add_regex_with_accepting_value(&regex_ast, variant);
     }
 
     // Determinize the state machine
-
+    let dfa = dfa::Automaton::from_nfa(nfa, |_, _| panic!("Multiple accepting values!"));
 
     TokenStream::new()
 }
