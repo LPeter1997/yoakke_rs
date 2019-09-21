@@ -10,19 +10,19 @@ use yk_intervals::{Interval, IntervalMap};
 pub struct State(usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Automaton<T> {
+pub struct Automaton<T, AcceptingValue = ()> {
     state_counter: usize,
     pub start: State,
-    accepting: HashSet<State>,
+    accepting: HashMap<State, AcceptingValue>,
     transitions: HashMap<State, IntervalMap<T, State>>,
 }
 
-impl <T> Automaton<T> {
+impl <T, AcceptingValue> Automaton<T, AcceptingValue> {
     pub fn new() -> Self {
         Self{
             state_counter: 0,
             start: State(0),
-            accepting: HashSet::new(),
+            accepting: HashMap::new(),
             transitions: HashMap::new(),
         }
     }
@@ -32,16 +32,26 @@ impl <T> Automaton<T> {
         State(self.state_counter)
     }
 
-    pub fn is_accepting(&self, state: &State) -> bool {
-        self.accepting.contains(state)
+    pub fn accepting_value(&self, state: &State) -> Option<&AcceptingValue> {
+        self.accepting.get(state)
     }
 
-    pub fn add_accepting(&mut self, state: State) {
-        self.accepting.insert(state);
+    pub fn is_accepting(&self, state: &State) -> bool {
+        self.accepting_value(state).is_some()
+    }
+
+    pub fn add_accepting_with_value(&mut self, state: State, value: AcceptingValue) {
+        self.accepting.insert(state, value);
     }
 }
 
-impl <T> Automaton<T> where T : Clone + Ord {
+impl <T, AcceptingValue> Automaton<T, AcceptingValue> where AcceptingValue : Default {
+    pub fn add_accepting(&mut self, state: State) {
+        self.add_accepting_with_value(state, AcceptingValue::default());
+    }
+}
+
+impl <T, AcceptingValue> Automaton<T, AcceptingValue> where T : Clone + Ord {
     fn add_transition(&mut self, from: State, on: Interval<T>, to: State) {
         let from_map = self.transitions.entry(from).or_insert(IntervalMap::new());
         from_map.insert_and_unify(on, to, |_| panic!());
@@ -52,8 +62,10 @@ impl <T> Automaton<T> where T : Clone + Ord {
  * Determinization.
  */
 
-impl <T> From<NFA<T>> for Automaton<T> where T : Clone + Ord {
-    fn from(nfa: NFA<T>) -> Self {
+impl <T, AcceptingValue> Automaton<T, AcceptingValue> where T : Clone + Ord, AcceptingValue : Clone {
+    pub fn from_nfa<F>(nfa: NFA<T, AcceptingValue>, unify: F) -> Self
+        where F : FnMut(AcceptingValue, AcceptingValue) -> AcceptingValue {
+
         let mut dfa = Self::new();
         let mut nfa_set_to_dfa_state = BTreeMap::new();
         let mut stk = Vec::new();
@@ -65,8 +77,9 @@ impl <T> From<NFA<T>> for Automaton<T> where T : Clone + Ord {
             stk.push((start_states, dfa.start));
 
             // Accepting registration
-            if nfa.is_accepting(&nfa.start) {
-                dfa.add_accepting(dfa.start);
+            if start_states.iter().any(|x| nfa.is_accepting(&x)) {
+                // TODO: Not this
+                dfa.add_accepting_with_value(dfa.start, val.clone());
             }
         }
 
@@ -103,6 +116,7 @@ impl <T> From<NFA<T>> for Automaton<T> where T : Clone + Ord {
 
                     // Accepting registration
                     if to.iter().any(|x| nfa.is_accepting(&x)) {
+                        // TODO: Not this
                         dfa.add_accepting(dfa_state_to);
                     }
 

@@ -10,20 +10,20 @@ use yk_regex_parse as regex;
 pub struct State(usize);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Automaton<T> {
+pub struct Automaton<T, AcceptingValue = ()> {
     state_counter: usize,
     pub start: State,
-    accepting: BTreeSet<State>,
+    accepting: BTreeMap<State, AcceptingValue>,
     transitions: BTreeMap<State, IntervalMap<T, BTreeSet<State>>>,
     epsilon: BTreeMap<State, BTreeSet<State>>,
 }
 
-impl <T> Automaton<T> {
+impl <T, AcceptingValue> Automaton<T, AcceptingValue> {
     pub fn new() -> Self {
         Self{
             state_counter: 0,
             start: State(0),
-            accepting: BTreeSet::new(),
+            accepting: BTreeMap::new(),
             transitions: BTreeMap::new(),
             epsilon: BTreeMap::new(),
         }
@@ -34,12 +34,16 @@ impl <T> Automaton<T> {
         State(self.state_counter)
     }
 
-    pub fn add_accepting(&mut self, state: State) {
-        self.accepting.insert(state);
+    pub fn add_accepting_with_value(&mut self, state: State, value: AcceptingValue) {
+        self.accepting.insert(state, value);
+    }
+
+    pub fn accepting_value(&self, state: &State) -> Option<&AcceptingValue> {
+        self.accepting.get(state)
     }
 
     pub fn is_accepting(&self, state: &State) -> bool {
-        self.accepting.contains(state)
+        self.accepting_value(state).is_some()
     }
 
     // TODO: Return references (HashSet<&State>) instead? Makes more sense.
@@ -75,7 +79,13 @@ impl <T> Automaton<T> {
     }
 }
 
-impl <T> Automaton<T> where T : Clone + Ord {
+impl <T, AcceptingValue> Automaton<T, AcceptingValue> where AcceptingValue : Default {
+    pub fn add_accepting(&mut self, state: State) {
+        self.add_accepting_with_value(state, AcceptingValue::default());
+    }
+}
+
+impl <T, AcceptingValue> Automaton<T, AcceptingValue> where T : Clone + Ord {
     pub fn add_transition(&mut self, from: State, on: Interval<T>, to: State) {
         let from_map = self.transitions.entry(from).or_insert(IntervalMap::new());
         let mut hs = BTreeSet::new();
@@ -93,16 +103,27 @@ impl <T> Automaton<T> where T : Clone + Ord {
  * Thompson's-construction.
  */
 
-impl Automaton<char> {
-    pub fn add_regex(&mut self, rx: &regex::Node) -> (State, State) {
+impl <AcceptingValue> Automaton<char, AcceptingValue> {
+    pub fn add_regex_with_accepting_value(
+        &mut self, rx: &regex::Node, value: AcceptingValue) -> (State, State) {
+
         let (from, to) = thompson_construct(self, rx);
         self.add_epsilon_transition(self.start, from);
-        self.add_accepting(to);
+        self.add_accepting_with_value(to, value);
         (from, to)
     }
 }
 
-impl From<regex::Node> for Automaton<char> {
+impl <AcceptingValue> Automaton<char, AcceptingValue> where AcceptingValue : Default {
+    pub fn add_regex(&mut self, rx: &regex::Node) -> (State, State) {
+        let (from, to) = thompson_construct(self, rx);
+        self.add_epsilon_transition(self.start, from);
+        self.add_accepting_with_value(to, Default::default());
+        (from, to)
+    }
+}
+
+impl <AcceptingValue> From<regex::Node> for Automaton<char, AcceptingValue> where AcceptingValue : Default {
     fn from(rx: regex::Node) -> Self {
         let mut nf = Self::new();
         nf.add_regex(&rx);
@@ -110,7 +131,7 @@ impl From<regex::Node> for Automaton<char> {
     }
 }
 
-fn thompson_construct(nfa: &mut Automaton<char>,
+fn thompson_construct<AcceptingValue>(nfa: &mut Automaton<char, AcceptingValue>,
     rx: &regex::Node) -> (State, State) {
 
     match rx {
@@ -131,7 +152,7 @@ fn thompson_construct(nfa: &mut Automaton<char>,
     }
 }
 
-fn thompson_construct_alternative(nfa: &mut Automaton<char>,
+fn thompson_construct_alternative<AcceptingValue>(nfa: &mut Automaton<char, AcceptingValue>,
     left: &regex::Node, right: &regex::Node) -> (State, State) {
 
     let start = nfa.unique_state();
@@ -149,7 +170,7 @@ fn thompson_construct_alternative(nfa: &mut Automaton<char>,
     (start, end)
 }
 
-fn thompson_construct_sequence(nfa: &mut Automaton<char>,
+fn thompson_construct_sequence<AcceptingValue>(nfa: &mut Automaton<char, AcceptingValue>,
     left: &regex::Node, right: &regex::Node) -> (State, State) {
 
     let (l_s, l_e) = thompson_construct(nfa, left);
@@ -160,7 +181,7 @@ fn thompson_construct_sequence(nfa: &mut Automaton<char>,
     (l_s, r_e)
 }
 
-fn thompson_construct_quantified(nfa: &mut Automaton<char>,
+fn thompson_construct_quantified<AcceptingValue>(nfa: &mut Automaton<char, AcceptingValue>,
     subnode: &regex::Node, quantifier: regex::Quantifier) -> (State, State) {
 
     match quantifier {
@@ -196,7 +217,7 @@ fn thompson_construct_quantified(nfa: &mut Automaton<char>,
     }
 }
 
-fn thompson_construct_grouping(nfa: &mut Automaton<char>,
+fn thompson_construct_grouping<AcceptingValue>(nfa: &mut Automaton<char, AcceptingValue>,
     negated: bool, elements: &Vec<regex::GroupingElement>) -> (State, State) {
 
     let mut ivs = IntervalSet::new();
@@ -227,7 +248,7 @@ fn thompson_construct_grouping(nfa: &mut Automaton<char>,
     (start, end)
 }
 
-fn thompson_construct_literal(nfa: &mut Automaton<char>,
+fn thompson_construct_literal<AcceptingValue>(nfa: &mut Automaton<char, AcceptingValue>,
     ch: char) -> (State, State) {
 
     let start = nfa.unique_state();
@@ -238,7 +259,7 @@ fn thompson_construct_literal(nfa: &mut Automaton<char>,
     (start, end)
 }
 
-fn thompson_construct_repeat(nfa: &mut Automaton<char>,
+fn thompson_construct_repeat<AcceptingValue>(nfa: &mut Automaton<char, AcceptingValue>,
     node: &regex::Node, count: usize) -> (State, State) {
 
     let start = nfa.unique_state();

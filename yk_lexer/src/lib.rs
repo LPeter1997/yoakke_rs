@@ -104,6 +104,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
         accept_to_variant.insert(accepting, variant);
     }
 
+    // Determinize the state machine
 
 
     TokenStream::new()
