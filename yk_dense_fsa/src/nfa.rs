@@ -8,6 +8,7 @@ use yk_intervals::{Interval, IntervalMap};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct State(usize);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Automaton<T> {
     state_counter: usize,
     pub start: State,
@@ -62,6 +63,10 @@ impl <T> Automaton<T> {
     pub fn add_epsilon_transition(&mut self, from: State, to: State) {
         let from_map = self.epsilon.entry(from).or_insert(BTreeSet::new());
         from_map.insert(to);
+    }
+
+    pub fn transitions_from(&self, from: &State) -> Option<&IntervalMap<T, BTreeSet<State>>> {
+        self.transitions.get(from)
     }
 }
 

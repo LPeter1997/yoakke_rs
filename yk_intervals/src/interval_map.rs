@@ -6,7 +6,7 @@
 use crate::interval::{Interval, IntervalRelation, intersecting_index_range};
 use crate::bound::{LowerBound, UpperBound};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntervalMap<K, V> {
     pub(crate) intervals: Vec<(Interval<K>, V)>,
 }
@@ -324,6 +324,28 @@ impl <K, V> IntervalMap<K, V> where K : Clone + Ord, V : Clone {
                 }
             }
         }
+    }
+}
+
+/**
+ * Iteration.
+ */
+
+impl <K, V> IntoIterator for IntervalMap<K, V> {
+    type Item = (Interval<K>, V);
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.intervals.into_iter()
+    }
+}
+
+impl <'a, K, V> IntoIterator for &'a IntervalMap<K, V> {
+    type Item = &'a (Interval<K>, V);
+    type IntoIter = std::slice::Iter<'a, (Interval<K>, V)>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.intervals.as_slice().into_iter()
     }
 }
 

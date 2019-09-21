@@ -6,7 +6,7 @@
 use crate::bound::{LowerBound, UpperBound};
 
 /// Represents a generic interval
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Interval<T> {
     pub lower: LowerBound<T>,
     pub upper: UpperBound<T>,

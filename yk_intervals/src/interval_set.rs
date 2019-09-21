@@ -6,7 +6,7 @@
 use crate::bound::{LowerBound, UpperBound};
 use crate::interval::{Interval, touching_index_range};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntervalSet<T> {
     pub(crate) intervals: Vec<Interval<T>>,
 }
