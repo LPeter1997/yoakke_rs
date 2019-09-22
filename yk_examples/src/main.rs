@@ -1,7 +1,7 @@
 
-extern crate yk_lexer;
+extern crate yk_lexer_derive;
 
-#[derive(yk_lexer::Lexer)]
+#[derive(yk_lexer_derive::Lexer)]
 enum TokenType {
     #[error]
     Error,

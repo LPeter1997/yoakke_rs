@@ -1,5 +1,5 @@
 [package]
-name = "yk_lexer"
+name = "yk_lexer_derive"
 version = "0.1.0"
 authors = ["Peter Lenkefi <lenkefi.peti@gmail.com>"]
 edition = "2018"

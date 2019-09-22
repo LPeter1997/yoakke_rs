@@ -4,6 +4,6 @@ members = [
     "yk_intervals",
     "yk_regex_parse",
     "yk_dense_fsa",
-    "yk_lexer",
+    "yk_lexer_derive",
     "yk_examples",
 ]
