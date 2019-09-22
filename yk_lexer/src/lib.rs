@@ -203,7 +203,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
         arms.push(quote!{
             _ => {
                 if let Some((idx, value)) = last_accepting {
-                    return Some((source[0..idx], value));
+                    return Some((&source[0..idx], value));
                 }
             },
         });
@@ -235,7 +235,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                 }
                 else {
                     if let Some((idx, value)) = last_accepting {
-                        return Some((source[0..idx], value));
+                        return Some((&source[0..idx], value));
                     }
                     else {
                         unimplemented!();
@@ -244,7 +244,6 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
             }
         }
     };
-    println!("{}", res);
     res.into()
 }
 
