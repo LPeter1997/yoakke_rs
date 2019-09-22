@@ -77,6 +77,10 @@ impl <T, AcceptingValue> Automaton<T, AcceptingValue> {
     pub fn transitions_from(&self, from: &State) -> Option<&IntervalMap<T, BTreeSet<State>>> {
         self.transitions.get(from)
     }
+
+    pub fn states(&self) -> std::iter::Map<std::ops::RangeInclusive<usize>, fn(usize) -> State> {
+        (0..=self.state_counter).map(|x| State(x))
+    }
 }
 
 impl <T, AcceptingValue> Automaton<T, AcceptingValue> where AcceptingValue : Default {

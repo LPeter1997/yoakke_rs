@@ -104,5 +104,55 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
     // Determinize the state machine
     let dfa = dfa::Automaton::from_nfa(nfa, |_, _| panic!("Multiple accepting values!"));
 
+    // Construct the finite automaton
+    /*
+     * It would look something like this:
+     *
+     * // src: &str
+     *
+     * let mut src_it = src.char_indicies();
+     * let mut state = initial_state;
+     * let mut last_accepting = None;
+     * loop {
+     *     if let Some(idx, c) = char_indicies.next() {
+     *         match state {
+     *             State(some_state) => match c as u32 {
+     *                 ('a' as u32)..=('z' as u32) => {
+     *                     state = sone_next_state;
+     *                     // If accepting state is some accepting state
+     *                     last_accepting = Some((idx, state));
+     *                 },
+     *                 _ => if last_accepting.is_some() { Ok! } else { Error! }
+     *             },
+     *             // Other states
+     *         }
+     *     }
+     *     else {
+     *         // Return last accepting, then return end
+     *     }
+     * }
+     */
+
+    // We collect each arm of the match
+    //let mut state_transitions = Vec::new();
+    for state in dfa.states() {
+        // We visit the state's possible transitions
+        if let Some(transitions) = dfa.transitions_from(&state) {
+            for (interval, destination) in transitions {
+                // We need to generate an arm
+                /*
+                 * (interval.lower to interval.upper) => {
+                 *     Change to the destination state
+                 *     If destination state is accepting, save
+                 * }
+                 */
+                /*let arm = quote!{
+
+                };*/
+            }
+        }
+        // Add a default failing arm
+    }
+
     TokenStream::new()
 }

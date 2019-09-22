@@ -43,6 +43,14 @@ impl <T, AcceptingValue> Automaton<T, AcceptingValue> {
     pub fn add_accepting_with_value(&mut self, state: State, value: AcceptingValue) {
         self.accepting.insert(state, value);
     }
+
+    pub fn transitions_from(&self, from: &State) -> Option<&IntervalMap<T, State>> {
+        self.transitions.get(from)
+    }
+
+    pub fn states(&self) -> std::iter::Map<std::ops::RangeInclusive<usize>, fn(usize) -> State> {
+        (0..=self.state_counter).map(|x| State(x))
+    }
 }
 
 impl <T, AcceptingValue> Automaton<T, AcceptingValue> where AcceptingValue : Default {

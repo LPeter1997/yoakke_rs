@@ -12,7 +12,7 @@ enum TokenType {
     #[regex("[asd]")]
     Foo,
 
-    #[regex("[btd]")]
+    #[regex("[bte]")]
     Bar,
 }
 
