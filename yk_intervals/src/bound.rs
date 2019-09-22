@@ -149,7 +149,7 @@ impl <T> PartialOrd<UpperBound<T>> for LowerBound<T> where T : Ord {
 
             (LowerBound::Included(l), UpperBound::Included(r)) =>
                 match l.cmp(r) {
-                    Ordering::Equal => None,
+                    Ordering::Equal => Some(Ordering::Less), // Weird but works for now
                     o => Some(o),
                 },
         }
