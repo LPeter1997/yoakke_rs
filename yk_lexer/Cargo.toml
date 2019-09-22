@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 yk_dense_fsa = { path = "../yk_dense_fsa" }
 syn = { version = "1.0.5", features = ["full"] }
+quote = "1.0.2"
 
 [lib]
 proc-macro = true

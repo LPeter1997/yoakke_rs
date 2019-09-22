@@ -9,6 +9,12 @@ use yk_intervals::{Interval, IntervalMap};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct State(usize);
 
+impl State {
+    pub fn id(&self) -> usize {
+        self.0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Automaton<T, AcceptingValue = ()> {
     state_counter: usize,
