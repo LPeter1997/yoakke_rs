@@ -292,61 +292,61 @@ mod regex_parser_tests {
 
     #[test]
     fn a_or_b() {
-        assert_eq!(parse(r"a|b"), Ok(alt(ch('a'), ch('b'))));
+        assert_eq!(parse(r"a|b"), Ok(*alt(ch('a'), ch('b'))));
     }
 
     #[test]
     fn a_or_b_or_c() {
-        assert_eq!(parse(r"a|b|c"), Ok(alt(ch('a'), alt(ch('b'), ch('c')))));
+        assert_eq!(parse(r"a|b|c"), Ok(*alt(ch('a'), alt(ch('b'), ch('c')))));
     }
 
     #[test]
     fn ab() {
-        assert_eq!(parse(r"ab"), Ok(seq(ch('a'), ch('b'))));
+        assert_eq!(parse(r"ab"), Ok(*seq(ch('a'), ch('b'))));
     }
 
     #[test]
     fn abc() {
-        assert_eq!(parse(r"abc"), Ok(seq(ch('a'), seq(ch('b'), ch('c')))));
+        assert_eq!(parse(r"abc"), Ok(*seq(ch('a'), seq(ch('b'), ch('c')))));
     }
 
     #[test]
     fn ab_or_c() {
-        assert_eq!(parse(r"ab|c"), Ok(alt(seq(ch('a'), ch('b')), ch('c'))));
+        assert_eq!(parse(r"ab|c"), Ok(*alt(seq(ch('a'), ch('b')), ch('c'))));
     }
 
     #[test]
     fn ab_or_cd() {
-        assert_eq!(parse(r"ab|cd"), Ok(alt(seq(ch('a'), ch('b')), seq(ch('c'), ch('d')))));
+        assert_eq!(parse(r"ab|cd"), Ok(*alt(seq(ch('a'), ch('b')), seq(ch('c'), ch('d')))));
     }
 
     #[test]
     fn a_b_or_c_d() {
-        assert_eq!(parse(r"a(b|c)d"), Ok(seq(ch('a'), seq(alt(ch('b'), ch('c')), ch('d')))));
+        assert_eq!(parse(r"a(b|c)d"), Ok(*seq(ch('a'), seq(alt(ch('b'), ch('c')), ch('d')))));
     }
 
     #[test]
     fn abc_group() {
-        assert_eq!(parse(r"[abc]"), Ok(grp(false, vec![ge_ch('a'), ge_ch('b'), ge_ch('c')])));
+        assert_eq!(parse(r"[abc]"), Ok(*grp(false, vec![ge_ch('a'), ge_ch('b'), ge_ch('c')])));
     }
 
     #[test]
     fn a_to_c_and_f_to_h_group() {
-        assert_eq!(parse(r"[a-cf-h]"), Ok(grp(false, vec![ge_rng('a', 'c'), ge_rng('f', 'h')])));
+        assert_eq!(parse(r"[a-cf-h]"), Ok(*grp(false, vec![ge_rng('a', 'c'), ge_rng('f', 'h')])));
     }
 
     #[test]
     fn a_zero_or_more() {
-        assert_eq!(parse(r"a*"), Ok(star(ch('a'))));
+        assert_eq!(parse(r"a*"), Ok(*star(ch('a'))));
     }
 
     #[test]
     fn a_then_b_zero_or_more() {
-        assert_eq!(parse(r"ab*"), Ok(seq(ch('a'), star(ch('b')))));
+        assert_eq!(parse(r"ab*"), Ok(*seq(ch('a'), star(ch('b')))));
     }
 
     #[test]
     fn ab_zero_or_more() {
-        assert_eq!(parse(r"(ab)*"), Ok(star(seq(ch('a'), ch('b')))));
+        assert_eq!(parse(r"(ab)*"), Ok(*star(seq(ch('a'), ch('b')))));
     }
 }

@@ -12,8 +12,8 @@ enum TokenType {
     #[regex("[asd]")]
     Foo,
 
-    #[regex("[asd]")]
-    Bar,
+    //#[regex("[asd]")]
+    //Bar,
 }
 
 fn main() {
