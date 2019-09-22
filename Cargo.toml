@@ -5,5 +5,6 @@ members = [
     "yk_regex_parse",
     "yk_dense_fsa",
     "yk_lexer_derive",
+    "yk_lexer",
     "yk_examples",
 ]
