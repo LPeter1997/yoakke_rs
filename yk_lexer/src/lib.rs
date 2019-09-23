@@ -40,10 +40,14 @@ impl <'a, T, IL> Lexer<T> for BuiltinLexer<'a, IL> where IL : LexerInternal<T> {
     fn next_token(&mut self) -> Token<T> {
         let (offs, tok_ty) = IL::next_token_internal(self.source_slice);
         let tok = Token{
-            value: &self.source_slice[0..offs],
+            value: &self.source_slice[0..=offs],
             kind: tok_ty,
         };
         self.source_slice = &self.source_slice[offs..];
+        // Advance one
+        /*if let Some((next_idx, _)) = self.source_slice[offs..].char_indices().skip(1).next() {
+            self.source_slice = &self.source_slice[next_idx..];
+        }*/
         tok
     }
 }

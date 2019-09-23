@@ -176,7 +176,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                         }
                         else {
                             // Nothing consumed, no more characters, it's just the end on input
-                            return (0, #enum_name :: #end_token);
+                            return (0, #enum_name::#end_token);
                         }
                     }
                 }
