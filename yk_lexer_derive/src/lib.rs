@@ -1,23 +1,47 @@
+/**
+ * The derive macro implementation that implements the trait 'Lexer' for a
+ * token-type enum.
+ */
 
 extern crate proc_macro;
 extern crate yk_dense_fsa;
 extern crate syn;
 extern crate quote;
 
-use std::collections::HashMap;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, ItemEnum, LitStr, Fields};
+use syn::{parse_macro_input, ItemEnum, LitStr, Fields, Ident};
 use quote::quote;
 use yk_dense_fsa::{nfa, dfa};
 use yk_dense_fsa::yk_regex_parse as regex;
-use yk_dense_fsa::yk_intervals::{Interval, LowerBound, UpperBound};
+use yk_dense_fsa::yk_intervals::{LowerBound, UpperBound};
 
-struct Token<'a, T> {
-    pub kind: T,
-    pub value: &'a str,
+// Regular expression for a C-style identifier
+const C_IDENT_REGEX: &str = "[A-Za-z_][A-Za-z0-9_]*";
+// Identifier for the front-end lexer library
+const FRONT_LIBRARY: Ident = Ident::from("yk_kexer");
+// Attribute name for error
+const ATTRIBUTE_ERR: &str = "error";
+// Attribute name for end
+const ATTRIBUTE_END: &str = "end";
+// Attribute name for a C-style identifier
+const ATTRIBUTE_C_IDENT: &str = "c_ident";
+// Attribute name for a regex-token
+const ATTRIBUTE_REGEX: &str = "regex";
+// Attribute name for a raw-string token
+const ATTRIBUTE_TOKEN: &str = "token";
+
+struct TokenDefinition {
+    variant_ident: Ident,
+    regex_str: String,
+    precedence: usize,
 }
 
-const C_IDENT_REGEX: &str = "[A-Za-z_][A-Za-z0-9_]*";
+struct LexerData {
+    enum_name: Ident,
+    err_variant: Ident,
+    end_variant: Ident,
+    tokens: Vec<TokenDefinition>,
+}
 
 #[proc_macro_derive(Lexer, attributes(
     error,
@@ -28,117 +52,28 @@ const C_IDENT_REGEX: &str = "[A-Za-z_][A-Za-z0-9_]*";
 pub fn yk_lexer(item: TokenStream) -> TokenStream {
     // Parse the enum
     let enm = parse_macro_input!(item as ItemEnum);
-
-    // Things we need to fill
-    let mut err_variant = None;
-    let mut end_variant = None;
-
-    let mut regexes = Vec::new();
-
-    for variant in &enm.variants {
-        match variant.fields {
-            Fields::Unit => { },
-            _ => panic!("Tokens can't hold extra information!"),
-        }
-
-        let var_attrs = &variant.attrs;
-
-        for attr in var_attrs {
-            let ident = &attr.path.segments[0].ident;
-
-            if attr.path.segments.len() != 1 {
-                panic!("Unknown attribute!");
-            }
-
-            if ident == "error" {
-                if err_variant.is_some() {
-                    panic!("You can only define one 'error' variant!");
-                }
-                if !attr.tokens.is_empty() {
-                    panic!("'error' can't have any metadata!");
-                }
-
-                err_variant = Some(ident.clone());
-            }
-            else if ident == "end" {
-                if end_variant.is_some() {
-                    panic!("You can only define one 'end' variant!");
-                }
-                if !attr.tokens.is_empty() {
-                    panic!("'end' can't have any metadata!");
-                }
-
-                end_variant = Some(ident.clone());
-            }
-            else if ident == "c_ident" {
-                if !attr.tokens.is_empty() {
-                    panic!("'c_ident' can't have any metadata!");
-                }
-
-                regexes.push((variant.ident.clone(), String::from(C_IDENT_REGEX)));
-            }
-            else if ident == "regex" {
-                // TODO: Allow '=' too
-                let rx = attr.parse_args::<LitStr>().unwrap();
-                let rx_str = rx.value();
-
-                regexes.push((variant.ident.clone(), rx_str));
-            }
-            else {
-                panic!("Unknown attribute!");
-            }
-        }
-    }
-
-    if err_variant.is_none() {
-        panic!("You must define an 'error' variant!");
-    }
-    if end_variant.is_none() {
-        panic!("You must define an 'end' variant!");
-    }
-
-    let err_variant = err_variant.unwrap();
-    let end_variant = end_variant.unwrap();
-    let enum_name = enm.ident.clone();
+    let lexer_data = parse_attributes(&enm);
+    let enum_name = lexer_data.enum_name;
 
     // Now we have the regexes, let's construct a DFA
     let mut nfa = nfa::Automaton::new();
-    for (variant, rx) in regexes {
-        let regex_ast = regex::parse(&rx).unwrap(); // TODO: Good error msg
-        nfa.add_regex_with_accepting_value(&regex_ast, variant);
+    for TokenDefinition{ variant_ident, regex_str, precedence } in lexer_data.tokens {
+        let regex_ast = regex::parse(&regex_str).expect("Error in regex syntax!"); // TODO: Good error msg
+        nfa.add_regex_with_accepting_value(&regex_ast, (variant_ident, precedence));
     }
 
     // Determinize the state machine
-    let dfa = dfa::Automaton::from_nfa(nfa, |_, _| panic!("Multiple accepting values!"));
-
-    // Construct the finite automaton
-    /*
-     * It would look something like this:
-     *
-     * // src: &str
-     *
-     * let mut src_it = src.char_indicies();
-     * let mut state = initial_state;
-     * let mut last_accepting = None;
-     * loop {
-     *     if let Some(idx, c) = src_it.next() {
-     *         match state {
-     *             State(some_state) => match c as u32 {
-     *                 ('a' as u32)..=('z' as u32) => {
-     *                     state = sone_next_state;
-     *                     // If accepting state is some accepting state
-     *                     last_accepting = Some((idx, value));
-     *                 },
-     *                 _ => if last_accepting.is_some() { Ok! } else { Error! }
-     *             },
-     *             // Other states
-     *         }
-     *     }
-     *     else {
-     *         // Return last accepting, then return end
-     *     }
-     * }
-     */
+    let dfa = dfa::Automaton::from_nfa(nfa, |a, b| {
+        if a.1 > b.1 {
+            a
+        }
+        else if a.1 < b.1 {
+            b
+        }
+        else {
+            panic!("{} and {} are conflicting!", a.0, b.0);
+        }
+    });
 
     // We collect each arm of the match
     let mut state_transitions = Vec::new();
@@ -147,63 +82,50 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
 
         // We visit the state's possible transitions
         if let Some(transitions) = dfa.transitions_from(&state) {
-
             for (interval, destination) in transitions {
                 // We need to generate an arm
-                /*
-                 * (interval.lower to interval.upper) => {
-                 *     Change to the destination state
-                 *     If destination state is accepting, save
-                 * }
-                 */
                 let lower = to_lower_inclusive_u32(&interval.lower);
                 let upper = to_upper_inclusive_u32(&interval.upper);
 
-                let arm_case =
-                    if lower.is_some() && upper.is_some() {
-                        let lower = lower.unwrap();
-                        let upper = upper.unwrap();
-                        quote!{ #lower..=#upper }
-                    }
-                    else if lower.is_some() {
-                        let lower = lower.unwrap();
-                        quote!{ #lower.. }
-                    }
-                    else if upper.is_some() {
-                        let upper = upper.unwrap();
-                        quote!{ ..#upper }
-                    }
-                    else {
-                        quote!{ .. }
-                    };
-
-                let destination_id = destination.id();
-                let arm = if let Some(accepting) = dfa.accepting_value(&destination) {
-                    // Accepting state
-                    quote!{
-                        #arm_case => {
-                            current_state = #destination_id;
-                            last_accepting = Some((current_index, #enum_name::#accepting));
-                        },
-                    }
-                }
-                else {
-                    // Non-accepting state
-                    quote!{
-                        #arm_case => {
-                            current_state = #destination_id;
-                        },
-                    }
+                let arm_pattern = match (lower, upper) {
+                    (Some(a), Some(b)) => quote!{ #a..=#b },
+                    (Some(a), None) => quote!{ #a.. },
+                    (None, Some(b)) => quote!{ ..=#b },
+                    (None, None) => quote!{ .. },
                 };
+
+                // Build a "save" statement if the state is an accepting one
+                let acceptor = match dfa.accepting_value(&destination) {
+                    Some((token_type, _)) => quote!{
+                        last_accepting = Some((current_index, #enum_name::#token_type))
+                    },
+                    None => quote!{},
+                };
+
+                // Build the actual match arm
+                let destination_id = destination.id();
+                let arm = quote!{
+                    #arm_pattern => {
+                        current_state = #destination_id;
+                        #acceptor;
+                    },
+                };
+
                 arms.push(arm);
             }
         }
 
         // Add a default failing arm
+        let error_token = lexer_data.err_variant;
         arms.push(quote!{
             _ => {
                 if let Some((idx, value)) = last_accepting {
-                    return Some((&source[0..idx], value));
+                    // We succeeded before, return that
+                    return (idx, value);
+                }
+                else {
+                    // No success before, return an error
+                    return (1, #enum_name::#error_token);
                 }
             },
         });
@@ -220,31 +142,105 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
     state_transitions.push(quote!{
         _ => panic!("Unknown state!"),
     });
-    // Wrap it in the whole logic
+
+    // Wrap it into an internal token parsing function
     let initial_state_id = dfa.start.id();
+    let error_token = lexer_data.err_variant;
+    let end_token = lexer_data.end_variant;
     let res = quote!{
-        fn lex(source: &str) -> Option<(&str, #enum_name)> {
-            let mut source_it = source.char_indices();
-            let mut current_state = #initial_state_id;
-            let mut last_accepting = None;
-            loop {
-                if let Some((current_index, current_char)) = source_it.next() {
-                    match current_state {
-                        #(#state_transitions)*
-                    }
-                }
-                else {
-                    if let Some((idx, value)) = last_accepting {
-                        return Some((&source[0..idx], value));
+        impl #enum_name {
+            fn next_token_internal(source: &str) -> (usize, #enum_name) {
+                let mut source_it = source.char_indices();
+                let mut current_state = #initial_state_id;
+                let mut last_accepting = None;
+                let mut has_consumed = false;
+                loop {
+                    if let Some((current_index, current_char)) = source_it.next() {
+                        has_consumed = true;
+                        match current_state {
+                            #(#state_transitions)*
+                        }
                     }
                     else {
-                        unimplemented!();
+                        if let Some((idx, value)) = last_accepting {
+                            // We succeeded before, return that
+                            return (idx, value);
+                        }
+                        else if has_consumed {
+                            // No success, but there are characters consumed, we error out
+                            return (1, #enum_name::#error_token);
+                        }
+                        else {
+                            // Nothing consumed, no more characters, it's just the end on input
+                            return (0, #enum_name :: #end_token);
+                        }
                     }
                 }
             }
         }
+
+        impl ::#FRONT_LIBRARY::TokenType<#enum_name> for #enum_name {
+            fn with_source(source: &str) -> impl ::#FRONT_LIBRARY::BuiltinLexer {
+                ::#FRONT_LIBRARY::BuiltinLexer::with_source_and_fn(
+                    source,
+                    #enum_name::next_token_internal
+                )
+            }
+        }
     };
     res.into()
+}
+
+fn parse_attributes(enm: &ItemEnum) -> LexerData {
+    // We need to fill these
+    let enum_name = enm.ident.clone();
+    let mut end_variant = None;
+    let mut err_variant = None;
+    let mut tokens = Vec::new();
+
+    // Parse the variants
+    for variant in &enm.variants {
+        // If it's not a basic enum variant (without fields), we error out
+        match variant.fields {
+            Fields::Unit => { },
+            _ => panic!("Token types can only be unit-like variants!"),
+        }
+
+        let variant_ident = variant.ident.clone();
+
+        for attr in &variant.attrs {
+            if attr.path.is_ident(ATTRIBUTE_END) {
+                assert!(end_variant.is_none(), "Exactly on 'end' variant must be defined!");
+                end_variant = Some(variant_ident);
+            }
+            else if attr.path.is_ident(ATTRIBUTE_ERR) {
+                assert!(end_variant.is_none(), "Exactly on 'err' variant must be defined!");
+                err_variant = Some(variant_ident);
+            }
+            else if attr.path.is_ident(ATTRIBUTE_TOKEN) {
+                // TODO: Allow '=' too
+                let token = attr.parse_args::<LitStr>().unwrap();
+                // TODO: Escape so it actually wouldn't be a regex
+                let regex_str = token.value();
+                tokens.push(TokenDefinition{ variant_ident, regex_str, precedence: 1, });
+            }
+            else if attr.path.is_ident(ATTRIBUTE_C_IDENT) {
+                assert!(attr.tokens.is_empty(), "'c_ident' requires no arguments!");
+                tokens.push(TokenDefinition{ variant_ident, regex_str: C_IDENT_REGEX.into(), precedence: 0, });
+            }
+            else if attr.path.is_ident(ATTRIBUTE_REGEX) {
+                // TODO: Allow '=' too
+                let token = attr.parse_args::<LitStr>().unwrap();
+                let regex_str = token.value();
+                tokens.push(TokenDefinition{ variant_ident, regex_str, precedence: 0, });
+            }
+        }
+    }
+
+    let err_variant = err_variant.expect("An 'error' variant must be defined!");
+    let end_variant = end_variant.expect("An 'end' variant must be defined!");
+
+    LexerData{ enum_name, err_variant, end_variant, tokens, }
 }
 
 fn to_lower_inclusive_u32(b: &LowerBound<char>) -> Option<u32> {
