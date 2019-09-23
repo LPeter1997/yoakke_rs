@@ -103,7 +103,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                 // Build a "save" statement if the state is an accepting one
                 let acceptor = match dfa.accepting_value(&destination) {
                     Some((token_type, _)) => quote!{
-                        last_accepting = Some((current_index, #enum_name::#token_type))
+                        last_accepting = Some((current_index + current_char.len_utf8(), #enum_name::#token_type))
                     },
                     None => quote!{},
                 };
@@ -130,7 +130,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                 }
                 else {
                     // No success before, return an error
-                    return (1, #enum_name::#error_token);
+                    return (source.chars().next().unwrap().len_utf8(), #enum_name::#error_token);
                 }
             },
         });
@@ -172,7 +172,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                         }
                         else if has_consumed {
                             // No success, but there are characters consumed, we error out
-                            return (1, #enum_name::#error_token);
+                            return (source.chars().next().unwrap().len_utf8(), #enum_name::#error_token);
                         }
                         else {
                             // Nothing consumed, no more characters, it's just the end on input

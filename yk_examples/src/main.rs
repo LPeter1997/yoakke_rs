@@ -11,7 +11,7 @@ enum MyTokenType {
     #[end]
     End,
 
-    #[regex("[c_ident]")]
+    #[c_ident]
     Ident,
 
     #[token("foo")]
@@ -19,11 +19,11 @@ enum MyTokenType {
 }
 
 fn main() {
-    let mut lexer = MyTokenType::with_source("foo world");
+    let mut lexer = MyTokenType::with_source("foo_ world");
     loop {
         let tok = lexer.next_token();
-        println!("{} - {:?}", tok.value, tok.kind);
-        if tok.kind == MyTokenType::Error || tok.kind == MyTokenType::End {
+        println!("'{}' - {:?}", tok.value, tok.kind);
+        if tok.kind == MyTokenType::End {
             break;
         }
     }
