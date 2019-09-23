@@ -15,10 +15,10 @@ use yk_dense_fsa::{nfa, dfa};
 use yk_dense_fsa::yk_regex_parse as regex;
 use yk_dense_fsa::yk_intervals::{LowerBound, UpperBound};
 
+// Identifier for the front-end lexer library
+const FRONT_LIBRARY_NAME: &str = "yk_lexer";
 // Regular expression for a C-style identifier
 const C_IDENT_REGEX: &str = "[A-Za-z_][A-Za-z0-9_]*";
-// Identifier for the front-end lexer library
-const FRONT_LIBRARY: Ident = Ident::from("yk_kexer");
 // Attribute name for error
 const ATTRIBUTE_ERR: &str = "error";
 // Attribute name for end
@@ -50,10 +50,15 @@ struct LexerData {
     regex,
 ))]
 pub fn yk_lexer(item: TokenStream) -> TokenStream {
+    // Identifier for the front-end lexer library
+    let FRONT_LIBRARY = quote::format_ident!("{}", FRONT_LIBRARY_NAME);
+
     // Parse the enum
     let enm = parse_macro_input!(item as ItemEnum);
     let lexer_data = parse_attributes(&enm);
+
     let enum_name = lexer_data.enum_name;
+    let error_token = lexer_data.err_variant;
 
     // Now we have the regexes, let's construct a DFA
     let mut nfa = nfa::Automaton::new();
@@ -116,7 +121,6 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
         }
 
         // Add a default failing arm
-        let error_token = lexer_data.err_variant;
         arms.push(quote!{
             _ => {
                 if let Some((idx, value)) = last_accepting {
@@ -145,10 +149,9 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
 
     // Wrap it into an internal token parsing function
     let initial_state_id = dfa.start.id();
-    let error_token = lexer_data.err_variant;
     let end_token = lexer_data.end_variant;
     let res = quote!{
-        impl #enum_name {
+        impl ::#FRONT_LIBRARY::LexerInternal<#enum_name> for #enum_name {
             fn next_token_internal(source: &str) -> (usize, #enum_name) {
                 let mut source_it = source.char_indices();
                 let mut current_state = #initial_state_id;
@@ -180,11 +183,8 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
         }
 
         impl ::#FRONT_LIBRARY::TokenType<#enum_name> for #enum_name {
-            fn with_source(source: &str) -> impl ::#FRONT_LIBRARY::BuiltinLexer {
-                ::#FRONT_LIBRARY::BuiltinLexer::with_source_and_fn(
-                    source,
-                    #enum_name::next_token_internal
-                )
+            fn with_source(source: &str) -> ::#FRONT_LIBRARY::BuiltinLexer<#enum_name> {
+                ::#FRONT_LIBRARY::BuiltinLexer::with_source(source)
             }
         }
     };
@@ -211,28 +211,40 @@ fn parse_attributes(enm: &ItemEnum) -> LexerData {
         for attr in &variant.attrs {
             if attr.path.is_ident(ATTRIBUTE_END) {
                 assert!(end_variant.is_none(), "Exactly on 'end' variant must be defined!");
-                end_variant = Some(variant_ident);
+                end_variant = Some(variant_ident.clone());
             }
             else if attr.path.is_ident(ATTRIBUTE_ERR) {
                 assert!(end_variant.is_none(), "Exactly on 'err' variant must be defined!");
-                err_variant = Some(variant_ident);
+                err_variant = Some(variant_ident.clone());
             }
             else if attr.path.is_ident(ATTRIBUTE_TOKEN) {
                 // TODO: Allow '=' too
                 let token = attr.parse_args::<LitStr>().unwrap();
                 // TODO: Escape so it actually wouldn't be a regex
                 let regex_str = token.value();
-                tokens.push(TokenDefinition{ variant_ident, regex_str, precedence: 1, });
+                tokens.push(TokenDefinition{
+                    variant_ident: variant_ident.clone(),
+                    regex_str,
+                    precedence: 1,
+                });
             }
             else if attr.path.is_ident(ATTRIBUTE_C_IDENT) {
                 assert!(attr.tokens.is_empty(), "'c_ident' requires no arguments!");
-                tokens.push(TokenDefinition{ variant_ident, regex_str: C_IDENT_REGEX.into(), precedence: 0, });
+                tokens.push(TokenDefinition{
+                    variant_ident: variant_ident.clone(),
+                    regex_str: C_IDENT_REGEX.into(),
+                    precedence: 0,
+                });
             }
             else if attr.path.is_ident(ATTRIBUTE_REGEX) {
                 // TODO: Allow '=' too
                 let token = attr.parse_args::<LitStr>().unwrap();
                 let regex_str = token.value();
-                tokens.push(TokenDefinition{ variant_ident, regex_str, precedence: 0, });
+                tokens.push(TokenDefinition{
+                    variant_ident: variant_ident.clone(),
+                    regex_str,
+                    precedence: 0,
+                });
             }
         }
     }

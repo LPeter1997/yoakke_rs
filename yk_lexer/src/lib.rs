@@ -13,28 +13,36 @@ pub struct Token<'a, T> {
 }
 
 pub trait TokenType<T> {
-    fn with_source(source: &str) -> Self;
+    fn with_source(source: &str) -> BuiltinLexer<Self> where Self : Sized;
 }
 
 pub trait Lexer<T> {
     fn next_token(&mut self) -> Token<T>;
 }
 
-pub struct BuiltinLexer<'a, T, F> where F : FnMut(&'a str) -> (usize, Token<T>) {
-    source: &'a str,
-    source_slice: &'a str,
-    func: F,
+pub trait LexerInternal<T> {
+    fn next_token_internal(source: &str) -> (usize, T);
 }
 
-impl <'a, T, F> BuiltinLexer<'a, T, F> where F : FnMut(&'a str) -> (usize, Token<T>) {
-    pub fn with_source_and_fn(source: &'a str, func: F) -> Self {
-        Self{ source, source_slice: source, func, }
+pub struct BuiltinLexer<'a, T> {
+    source: &'a str,
+    source_slice: &'a str,
+    phantom: std::marker::PhantomData<T>,
+}
+
+impl <'a, T> BuiltinLexer<'a, T> {
+    pub fn with_source(source: &'a str) -> Self {
+        Self{ source, source_slice: source, phantom: std::marker::PhantomData }
     }
 }
 
-impl <'a, T, F> Lexer<T> for BuiltinLexer<'a, T, F> where F : FnMut(&'a str) -> (usize, Token<T>) {
+impl <'a, T, IL> Lexer<T> for BuiltinLexer<'a, IL> where IL : LexerInternal<T> {
     fn next_token(&mut self) -> Token<T> {
-        let (offs, tok) = self.func(self.source_slice);
+        let (offs, tok_ty) = IL::next_token_internal(self.source_slice);
+        let tok = Token{
+            value: &self.source_slice[0..offs],
+            kind: tok_ty,
+        };
         self.source_slice = &self.source_slice[offs..];
         tok
     }
