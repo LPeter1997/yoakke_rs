@@ -48,6 +48,7 @@ struct LexerData {
     end,
     c_ident,
     regex,
+    token,
 ))]
 pub fn yk_lexer(item: TokenStream) -> TokenStream {
     // Identifier for the front-end lexer library
