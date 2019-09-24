@@ -16,6 +16,10 @@ enum MyTokenType {
 
     #[token("foo")]
     Bar,
+
+    #[regex(" ")]
+    #[ignore]
+    Whitespace,
 }
 
 fn main() {

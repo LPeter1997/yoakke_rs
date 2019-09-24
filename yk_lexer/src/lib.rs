@@ -21,7 +21,7 @@ pub trait Lexer<T> {
 }
 
 pub trait LexerInternal<T> {
-    fn next_token_internal(source: &str) -> (usize, T);
+    fn next_token_internal(source: &str) -> (usize, T, bool);
 }
 
 pub struct BuiltinLexer<'a, T> {
@@ -38,12 +38,19 @@ impl <'a, T> BuiltinLexer<'a, T> {
 
 impl <'a, T, IL> Lexer<T> for BuiltinLexer<'a, IL> where IL : LexerInternal<T> {
     fn next_token(&mut self) -> Token<T> {
-        let (offs, tok_ty) = IL::next_token_internal(self.source_slice);
-        let tok = Token{
-            value: &self.source_slice[0..offs],
-            kind: tok_ty,
-        };
-        self.source_slice = &self.source_slice[offs..];
-        tok
+        loop {
+            let (offs, tok_ty, ignore) = IL::next_token_internal(self.source_slice);
+            if ignore {
+                self.source_slice = &self.source_slice[offs..];
+            }
+            else {
+                let tok = Token{
+                    value: &self.source_slice[0..offs],
+                    kind: tok_ty,
+                };
+                self.source_slice = &self.source_slice[offs..];
+                return tok;
+            }
+        }
     }
 }

@@ -29,11 +29,14 @@ const ATTRIBUTE_C_IDENT: &str = "c_ident";
 const ATTRIBUTE_REGEX: &str = "regex";
 // Attribute name for a raw-string token
 const ATTRIBUTE_TOKEN: &str = "token";
+// Attribute to ignore the defined token
+const ATTRIBUTE_IGNORE: &str = "ignore";
 
 struct TokenDefinition {
     variant_ident: Ident,
     regex_str: String,
     precedence: usize,
+    ignore: bool,
 }
 
 struct LexerData {
@@ -43,12 +46,20 @@ struct LexerData {
     tokens: Vec<TokenDefinition>,
 }
 
+#[derive(Clone)]
+struct AcceptingState {
+    variant_ident: Ident,
+    precedence: usize,
+    ignore: bool,
+}
+
 #[proc_macro_derive(Lexer, attributes(
     error,
     end,
     c_ident,
     regex,
     token,
+    ignore,
 ))]
 pub fn yk_lexer(item: TokenStream) -> TokenStream {
     // Identifier for the front-end lexer library
@@ -63,21 +74,21 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
 
     // Now we have the regexes, let's construct a DFA
     let mut nfa = nfa::Automaton::new();
-    for TokenDefinition{ variant_ident, regex_str, precedence } in lexer_data.tokens {
+    for TokenDefinition{ variant_ident, regex_str, precedence, ignore } in lexer_data.tokens {
         let regex_ast = regex::parse(&regex_str).expect("Error in regex syntax!"); // TODO: Good error msg
-        nfa.add_regex_with_accepting_value(&regex_ast, (variant_ident, precedence));
+        nfa.add_regex_with_accepting_value(&regex_ast, AcceptingState{ variant_ident, precedence, ignore });
     }
 
     // Determinize the state machine
     let dfa = dfa::Automaton::from_nfa(nfa, |a, b| {
-        if a.1 > b.1 {
+        if a.precedence > b.precedence {
             a
         }
-        else if a.1 < b.1 {
+        else if a.precedence < b.precedence {
             b
         }
         else {
-            panic!("{} and {} are conflicting!", a.0, b.0);
+            panic!("{} and {} are conflicting!", a.variant_ident, b.variant_ident);
         }
     });
 
@@ -102,8 +113,13 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
 
                 // Build a "save" statement if the state is an accepting one
                 let acceptor = match dfa.accepting_value(&destination) {
-                    Some((token_type, _)) => quote!{
-                        last_accepting = Some((current_index + current_char.len_utf8(), #enum_name::#token_type))
+                    Some(AcceptingState{ variant_ident, precedence: _, ignore: false }) => quote!{
+                        last_accepting = Some((current_index + current_char.len_utf8(), #enum_name::#variant_ident));
+                        last_ignore = false
+                    },
+                    Some(AcceptingState{ variant_ident, precedence: _, ignore: true }) => quote!{
+                        last_accepting = Some((current_index + current_char.len_utf8(), #enum_name::#variant_ident));
+                        last_ignore = true
                     },
                     None => quote!{},
                 };
@@ -126,11 +142,11 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
             _ => {
                 if let Some((idx, value)) = last_accepting {
                     // We succeeded before, return that
-                    return (idx, value);
+                    return (idx, value, last_ignore);
                 }
                 else {
                     // No success before, return an error
-                    return (source.chars().next().unwrap().len_utf8(), #enum_name::#error_token);
+                    return (source.chars().next().unwrap().len_utf8(), #enum_name::#error_token, false);
                 }
             },
         });
@@ -153,10 +169,11 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
     let end_token = lexer_data.end_variant;
     let res = quote!{
         impl ::#FRONT_LIBRARY::LexerInternal<#enum_name> for #enum_name {
-            fn next_token_internal(source: &str) -> (usize, #enum_name) {
+            fn next_token_internal(source: &str) -> (usize, #enum_name, bool) {
                 let mut source_it = source.char_indices();
                 let mut current_state = #initial_state_id;
                 let mut last_accepting = None;
+                let mut last_ignore = false;
                 let mut has_consumed = false;
                 loop {
                     if let Some((current_index, current_char)) = source_it.next() {
@@ -168,15 +185,15 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                     else {
                         if let Some((idx, value)) = last_accepting {
                             // We succeeded before, return that
-                            return (idx, value);
+                            return (idx, value, last_ignore);
                         }
                         else if has_consumed {
                             // No success, but there are characters consumed, we error out
-                            return (source.chars().next().unwrap().len_utf8(), #enum_name::#error_token);
+                            return (source.chars().next().unwrap().len_utf8(), #enum_name::#error_token, false);
                         }
                         else {
                             // Nothing consumed, no more characters, it's just the end on input
-                            return (0, #enum_name::#end_token);
+                            return (0, #enum_name::#end_token, false);
                         }
                     }
                 }
@@ -208,45 +225,69 @@ fn parse_attributes(enm: &ItemEnum) -> LexerData {
         }
 
         let variant_ident = variant.ident.clone();
+        let mut current_def = None;
 
         for attr in &variant.attrs {
             if attr.path.is_ident(ATTRIBUTE_END) {
                 assert!(end_variant.is_none(), "Exactly on 'end' variant must be defined!");
+                assert!(current_def.is_none(), "'end' mustn't stand along with any other attribute!");
                 end_variant = Some(variant_ident.clone());
             }
             else if attr.path.is_ident(ATTRIBUTE_ERR) {
                 assert!(end_variant.is_none(), "Exactly on 'err' variant must be defined!");
+                assert!(current_def.is_none(), "'err' mustn't stand along with any other attribute!");
                 err_variant = Some(variant_ident.clone());
             }
             else if attr.path.is_ident(ATTRIBUTE_TOKEN) {
+                // TODO: Ease this limitation
+                // We should allow things like #[token("if"), token("If")]
+                assert!(current_def.is_none(), "For now only one definition per attribute!");
                 // TODO: Allow '=' too
                 let token = attr.parse_args::<LitStr>().unwrap();
                 // TODO: Escape so it actually wouldn't be a regex
                 let regex_str = token.value();
-                tokens.push(TokenDefinition{
+                current_def = Some(TokenDefinition{
                     variant_ident: variant_ident.clone(),
                     regex_str,
                     precedence: 1,
+                    ignore: false,
                 });
             }
             else if attr.path.is_ident(ATTRIBUTE_C_IDENT) {
+                // TODO: Ease this limitation
+                // We should allow things like #[token("if"), token("If")]
+                assert!(current_def.is_none(), "For now only one definition per attribute!");
                 assert!(attr.tokens.is_empty(), "'c_ident' requires no arguments!");
-                tokens.push(TokenDefinition{
+                current_def = Some(TokenDefinition{
                     variant_ident: variant_ident.clone(),
                     regex_str: C_IDENT_REGEX.into(),
                     precedence: 0,
+                    ignore: false,
                 });
             }
             else if attr.path.is_ident(ATTRIBUTE_REGEX) {
+                // TODO: Ease this limitation
+                // We should allow things like #[token("if"), token("If")]
+                assert!(current_def.is_none(), "For now only one definition per attribute!");
                 // TODO: Allow '=' too
                 let token = attr.parse_args::<LitStr>().unwrap();
                 let regex_str = token.value();
-                tokens.push(TokenDefinition{
+                current_def = Some(TokenDefinition{
                     variant_ident: variant_ident.clone(),
                     regex_str,
                     precedence: 0,
+                    ignore: false,
                 });
             }
+            else if attr.path.is_ident(ATTRIBUTE_IGNORE) {
+                let mut cd = current_def.expect("'ignore' must be attached to a token definition!");
+                cd.ignore = true;
+                current_def = Some(cd);
+            }
+        }
+
+        if let Some(current_def) = current_def {
+            tokens.push(current_def);
         }
     }
 
