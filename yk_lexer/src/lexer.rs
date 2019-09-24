@@ -9,3 +9,7 @@ pub struct LexerState {
     pub source_index: usize,
     pub position: Position,
 }
+
+pub trait Lexer<T> {
+    fn new() -> Self;
+}

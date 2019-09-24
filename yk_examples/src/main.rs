@@ -23,12 +23,18 @@ enum MyTokenType {
 }
 
 fn main() {
-    let mut lexer = MyTokenType::with_source("foo_ world");
-    loop {
-        let tok = lexer.next_token();
+    // Creating a lexer
+    let mut lexer = MyTokenType::lexer();
+    // Iterating over all tokens
+    for tok in &lexer {
         println!("'{}' - {:?}", tok.value, tok.kind);
-        if tok.kind == MyTokenType::End {
-            break;
+    }
+    // Modification
+    // Erased range, inserted text
+    for m in lexer.source_modification(10..20, "Hello there") {
+        match m {
+            Modification::EraseToken(index) => { /* ... */ },
+            Modification::InsertToken(index, token) => { /* ... */ },
         }
     }
 }
