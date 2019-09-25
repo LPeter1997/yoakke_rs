@@ -17,7 +17,7 @@ enum MyTokenType {
     #[token("foo")]
     Bar,
 
-    #[regex(" ")]
+    #[regex(r"[ \r\n]")]
     #[ignore]
     Whitespace,
 }
@@ -26,7 +26,7 @@ fn main() {
     // Creating a lexer
     let mut lexer = MyTokenType::lexer();
     // Modify, re-lex the whole thing again
-    lexer.modify(&[], 0..0, "hello foo_ foo world
+    lexer.modify(&[], 0..0, "hello fo foo_ foo world
 haha this is a new    line
 mmlul
 foo foo foo_");

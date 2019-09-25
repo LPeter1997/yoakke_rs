@@ -77,14 +77,21 @@ impl <'a> Chars<'a> {
  * Actual parsing.
  */
 
-pub fn parse(source: &str) -> Result<Node, ()> {
+type ParseResult<'a, T> = Result<(T, Chars<'a>), &'static str>;
+
+pub fn parse(source: &str) -> Result<Node, &'static str> {
     match parse_alternative(Chars(source.chars())) {
-        Ok((n, _)) => Ok(*n),
+        Ok((n, it)) => {
+            if let Some(_) = it.next() {
+                Err("Unexpected character!")
+            }
+            else {
+                Ok(*n)
+            }
+        },
         Err(v) => Err(v),
     }
 }
-
-type ParseResult<'a, T> = Result<(T, Chars<'a>), ()>;
 
 // TODO: There could be a lit cleaned up VIA pattern guards, but the stabilization
 // of bind-by-move is two versions away:
@@ -128,7 +135,7 @@ fn parse_quantifier(it: Chars<'_>) -> ParseResult<'_, Quantifier> {
         Some(('+', it)) => Ok((Quantifier::AtLeast(1), it)),
         Some(('*', it)) => Ok((Quantifier::AtLeast(0), it)),
 
-        _ => Err(()),
+        _ => Err("Unknown quantifier!"),
     }
 }
 
@@ -140,7 +147,7 @@ fn parse_atom(it: Chars<'_>) -> ParseResult<'_, Box<Node>> {
                 Ok((node, it))
             }
             else {
-                Err(())
+                Err("Expected matching ')'!")
             }
         },
 
@@ -150,12 +157,22 @@ fn parse_atom(it: Chars<'_>) -> ParseResult<'_, Box<Node>> {
                 Ok((node, it))
             }
             else {
-                Err(())
+                Err("Expected matching ']'!")
             }
         },
 
         Some(('\\', it)) => {
-            unimplemented!();
+            if let Some((ch, it)) = it.next() {
+                if let Some(ch) = to_escaped(ch) {
+                    Ok((Box::new(Node::Literal(ch)), it))
+                }
+                else {
+                    Err("Cannot escape character!")
+                }
+            }
+            else {
+                Err("Expected a character after '\'!")
+            }
         },
 
         Some((c, it)) => {
@@ -163,11 +180,11 @@ fn parse_atom(it: Chars<'_>) -> ParseResult<'_, Box<Node>> {
                 Ok((Box::new(Node::Literal(c)), it))
             }
             else {
-                Err(())
+                Err("Expected a non-special character! (Did you forget to escape it?)")
             }
         },
 
-        None => Err(()),
+        None => Err("Expected a character!"),
     }
 }
 
@@ -213,10 +230,20 @@ fn parse_grouping_atom_init(it: Chars<'_>) -> ParseResult<'_, char> {
 
 fn parse_grouping_atom(it: Chars<'_>) -> ParseResult<'_, char> {
     match it.next() {
-        Some((']', _)) => Err(()),
+        Some((']', _)) => Err("A character was expected in grouping!"),
 
         Some(('\\', it)) => {
-            unimplemented!();
+            if let Some((ch, it)) = it.next() {
+                if let Some(ch) = to_escaped(ch) {
+                    Ok((ch, it))
+                }
+                else {
+                    Err("Cannot escape character!")
+                }
+            }
+            else {
+                Err("Expected a character after '\'!")
+            }
         },
 
         Some((c, it)) => {
@@ -224,11 +251,26 @@ fn parse_grouping_atom(it: Chars<'_>) -> ParseResult<'_, char> {
                 Ok((c, it))
             }
             else {
-                Err(())
+                Err("A nonspecial character was expected in grouping!")
             }
         },
 
-        None => Err(()),
+        None => Err("A character was expected in grouping!"),
+    }
+}
+
+fn to_escaped(c: char) -> Option<char> {
+    if is_special_char(c) {
+        Some(c)
+    }
+    else {
+        match c {
+            'r' => Some('\r'),
+            'n' => Some('\n'),
+            't' => Some('\t'),
+            '0' => Some('\0'),
+            _ => None,
+        }
     }
 }
 
