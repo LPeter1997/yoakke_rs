@@ -29,12 +29,26 @@ fn main() {
     for tok in &lexer {
         println!("'{}' - {:?}", tok.value, tok.kind);
     }
+    // Collecting them all
+    let mut toks: Vec<_> = lexer.collect();
     // Modification
     // Erased range, inserted text
-    for m in lexer.source_modification(10..20, "Hello there") {
+    for m in lexer.source_modification(&toks, 10..20, "Hello there") {
         match m {
             Modification::EraseToken(index) => { /* ... */ },
             Modification::InsertToken(index, token) => { /* ... */ },
         }
     }
+    // Modification in separate batches
+    let modif = lexer.source_modification(&toks, 10..20, "Hello there");
+    toks.drain(modif.erased_range);
+    for (index, tok) in modif.inserted {
+        toks.insert(index, tok);
+    }
+    // Batch modification
+    let modif = lexer.source_modification(&toks, 10..20, "Hello there");
+    toks.drain(modif.erased_range);
+    let start = modif.inserted.start;
+    let ins: Vec<> = modif.inserted.map(|(_, t)| r).collect();
+    toks.extend(start, ins);
 }
