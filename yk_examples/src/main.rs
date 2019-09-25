@@ -26,16 +26,15 @@ fn main() {
     // Creating a lexer
     let mut lexer = MyTokenType::lexer();
     // Modify, re-lex the whole thing again
-    let src = "hello foo_ foo world";
-    lexer.modify(&[], 0..0, &src);
+    lexer.modify(&[], 0..0, "hello foo_ foo world
+haha this is a new    line
+mmlul
+foo foo foo_");
     // Iterating over all tokens
     for tok in lexer.iter() {
-        println!("{:?} - {:?}", &src[tok.range], tok.kind);
+        println!("{:?} - {:?} [{:?}]", &lexer.source()[tok.range], tok.kind, tok.position);
     }
     /*
-    for tok in &lexer {
-        println!("'{}' - {:?}", tok.value, tok.kind);
-    }
     // Collecting them all
     let mut toks: Vec<_> = lexer.collect();
     // Modification

@@ -121,6 +121,10 @@ impl <T> StandardLexer<T> {
     pub fn new() -> Self {
         Self{ source: String::new(), state: LexerState::new(), phantom: PhantomData, }
     }
+
+    pub fn source(&self) -> &str {
+        &self.source
+    }
 }
 
 impl <T> Lexer for StandardLexer<T> where T : TokenType {
