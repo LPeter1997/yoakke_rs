@@ -9,6 +9,7 @@ mod position;
 mod lexer;
 mod token;
 
+/*
 pub use yk_lexer_derive::Lexer;
 
 pub use position::Position;
@@ -62,3 +63,6 @@ impl <'a, T, IL> Lexer<T> for BuiltinLexer<'a, IL> where IL : LexerInternal<T> {
         }
     }
 }
+*/
+
+
