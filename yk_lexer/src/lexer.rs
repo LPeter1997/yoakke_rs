@@ -125,6 +125,20 @@ impl <T> StandardLexer<T> {
     pub fn source(&self) -> &str {
         &self.source
     }
+
+    fn invalidated_range(tokens: &[Token<T>], erased: &Range<usize>) -> Range<usize> {
+        let mut lower = match tokens.binary_search_by_key(&erased.start, |t| t.range.start) {
+            Ok(idx) | Err(idx) => idx,
+        };
+        let upper = match tokens[lower..].binary_search_by_key(&erased.end, |t| t.range.end) {
+            Ok(idx) => idx + 1,
+            Err(idx) => idx,
+        } + lower;
+        if lower > 0 {
+            lower -= 1;
+        }
+        lower..upper
+    }
 }
 
 impl <T> Lexer for StandardLexer<T> where T : TokenType {
@@ -140,10 +154,11 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType {
         // Modify the source string
         // TODO: We could splice here
         let erased_start = erased.start;
-        self.source.drain(erased);
+        self.source.drain(erased.clone());
         self.source.insert_str(erased_start, inserted);
 
-        // TODO: Actual incremental logic
+        let mut invalid = Self::invalidated_range(tokens, &erased);
+        // TODO
 
         // TODO
         Modification{ erasure: Erasure{ range: 0..0, phantom: PhantomData }, insertion: Insertion{ phantom: PhantomData } }
