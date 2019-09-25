@@ -60,20 +60,22 @@ impl <'a, T> Iterator for Iter<'a, T> where T : TokenType {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             match T::next_lexeme_internal(self.source, &self.state) {
-                (state, Some(token)) => {
+                (state, Some(kind)) => {
+                    let range = self.state.source_index..state.source_index;
+                    let position = self.state.position;
                     self.state = state;
                     // If it's the end and we have already returned that, stop iteration
-                    if token.kind.is_end() {
+                    if kind.is_end() {
                         if self.already_ended {
                             return None;
                         }
                         else {
                             self.already_ended = true;
-                            return Some(token);
+                            return Some(Token{ range, kind, position });
                         }
                     }
                     else {
-                        return Some(token);
+                        return Some(Token{ range, kind, position });
                     }
                 },
 

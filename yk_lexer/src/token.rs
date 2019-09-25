@@ -4,7 +4,7 @@
 
 use std::ops::Range;
 use crate::position::Position;
-use crate::lexer::{LexerState, Lexer, StandardLexer};
+use crate::lexer::{LexerState, StandardLexer};
 
 /// A generic token that's being returned by the lexer.
 pub struct Token<T> {
@@ -21,5 +21,5 @@ pub trait TokenType : Sized {
     }
 
     fn is_end(&self) -> bool;
-    fn next_lexeme_internal(src: &str, state: &LexerState) -> (LexerState, Option<Token<Self>>);
+    fn next_lexeme_internal(src: &str, state: &LexerState) -> (LexerState, Option<Self>);
 }

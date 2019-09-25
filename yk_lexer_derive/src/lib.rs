@@ -114,11 +114,11 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                 // Build a "save" statement if the state is an accepting one
                 let acceptor = match dfa.accepting_value(&destination) {
                     Some(AcceptingState{ variant_ident, precedence: _, ignore: false }) => quote!{
-                        last_accepting = Some((current_index + current_char.len_utf8(), #enum_name::#variant_ident));
+                        last_accepting = Some((current_index + current_char_len, #enum_name::#variant_ident));
                         last_ignore = false
                     },
                     Some(AcceptingState{ variant_ident, precedence: _, ignore: true }) => quote!{
-                        last_accepting = Some((current_index + current_char.len_utf8(), #enum_name::#variant_ident));
+                        last_accepting = Some((current_index + current_char_len, #enum_name::#variant_ident));
                         last_ignore = true
                     },
                     None => quote!{},
@@ -142,11 +142,23 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
             _ => {
                 if let Some((idx, value)) = last_accepting {
                     // We succeeded before, return that
-                    return (idx, value, last_ignore);
+                    let mut new_lex_state = lex_state.clone();
+                    new_lex_state.source_index = start_idx + idx;
+                    // TODO: Rest of the fields
+                    if last_ignore {
+                        return (new_lex_state, None);
+                    }
+                    else {
+                        return (new_lex_state, Some(value));
+                    }
                 }
                 else {
                     // No success before, return an error
-                    return (source.chars().next().unwrap().len_utf8(), #enum_name::#error_token, false);
+                    let mut new_lex_state = lex_state.clone();
+                    let idx = source.chars().next().unwrap().len_utf8();
+                    new_lex_state.source_index = start_idx + idx;
+                    // TODO: Rest of the fields
+                    return (new_lex_state, Some(#enum_name::#error_token));
                 }
             },
         });
@@ -168,8 +180,17 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
     let initial_state_id = dfa.start.id();
     let end_token = lexer_data.end_variant;
     let res = quote!{
-        impl ::#FRONT_LIBRARY::LexerInternal<#enum_name> for #enum_name {
-            fn next_token_internal(source: &str) -> (usize, #enum_name, bool) {
+        impl ::#FRONT_LIBRARY::TokenType for #enum_name {
+            fn is_end(&self) -> bool {
+                match self {
+                    #enum_name::#end_token => true,
+                    _ => false,
+                }
+            }
+
+            fn next_lexeme_internal(src: &str, lex_state: &::#FRONT_LIBRARY::LexerState) -> (::#FRONT_LIBRARY::LexerState, Option<Self>) {
+                let start_idx = lex_state.source_index;
+                let source = &src[start_idx..];
                 let mut source_it = source.char_indices();
                 let mut current_state = #initial_state_id;
                 let mut last_accepting = None;
@@ -178,6 +199,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                 loop {
                     if let Some((current_index, current_char)) = source_it.next() {
                         has_consumed = true;
+                        let current_char_len = current_char.len_utf8();
                         match current_state {
                             #(#state_transitions)*
                         }
@@ -185,27 +207,34 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                     else {
                         if let Some((idx, value)) = last_accepting {
                             // We succeeded before, return that
-                            return (idx, value, last_ignore);
+                            let mut new_lex_state = lex_state.clone();
+                            new_lex_state.source_index = start_idx + idx;
+                            // TODO: Rest of the fields
+                            if last_ignore {
+                                return (new_lex_state, None);
+                            }
+                            else {
+                                return (new_lex_state, Some(value));
+                            }
                         }
                         else if has_consumed {
-                            // No success, but there are characters consumed, we error out
-                            return (source.chars().next().unwrap().len_utf8(), #enum_name::#error_token, false);
+                            // No success before, return an error
+                            let mut new_lex_state = lex_state.clone();
+                            let idx = source.chars().next().unwrap().len_utf8();
+                            new_lex_state.source_index = start_idx + idx;
+                            // TODO: Rest of the fields
+                            return (new_lex_state, Some(#enum_name::#error_token));
                         }
                         else {
                             // Nothing consumed, no more characters, it's just the end on input
-                            return (0, #enum_name::#end_token, false);
+                            return (lex_state.clone(), Some(#enum_name::#end_token));
                         }
                     }
                 }
             }
         }
-
-        impl ::#FRONT_LIBRARY::TokenType<#enum_name> for #enum_name {
-            fn with_source(source: &str) -> ::#FRONT_LIBRARY::BuiltinLexer<#enum_name> {
-                ::#FRONT_LIBRARY::BuiltinLexer::with_source(source)
-            }
-        }
     };
+    //println!("{}", res);
     res.into()
 }
 

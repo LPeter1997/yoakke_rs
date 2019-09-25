@@ -25,7 +25,14 @@ enum MyTokenType {
 fn main() {
     // Creating a lexer
     let mut lexer = MyTokenType::lexer();
+    // Modify, re-lex the whole thing again
+    let src = "hello foo_ foo world";
+    lexer.modify(&[], 0..0, &src);
     // Iterating over all tokens
+    for tok in lexer.iter() {
+        println!("{:?} - {:?}", &src[tok.range], tok.kind);
+    }
+    /*
     for tok in &lexer {
         println!("'{}' - {:?}", tok.value, tok.kind);
     }
@@ -51,4 +58,5 @@ fn main() {
     let start = modif.inserted.start;
     let ins: Vec<_> = modif.inserted.map(|(_, t)| r).collect();
     toks.extend(start, ins);
+    */
 }
