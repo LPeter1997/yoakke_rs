@@ -7,11 +7,13 @@ extern crate yk_lexer_derive;
 
 mod position;
 mod lexer;
+mod token;
 
 pub use yk_lexer_derive::Lexer;
 
 pub use position::Position;
-pub use lexer::LexerState;
+pub use lexer::{Lexer, LexerState};
+pub use token::{TokenType, Token};
 
 pub struct Token<'a, T> {
     pub value: &'a str,
