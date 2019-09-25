@@ -20,5 +20,6 @@ pub trait TokenType : Sized {
         StandardLexer::new()
     }
 
-    fn next_lexeme_internal(src: &str, state: LexerState) -> (LexerState, Option<Token<Self>>);
+    fn is_end(&self) -> bool;
+    fn next_lexeme_internal(src: &str, state: &LexerState) -> (LexerState, Option<Token<Self>>);
 }

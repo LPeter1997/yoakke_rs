@@ -28,12 +28,62 @@ impl LexerState {
  * Lexer interface and implementation.
  */
 
-pub trait Lexer<T> where T : TokenType {
-    fn modify(&mut self, tokens: &[T], erased: Range<usize>, inserted: &str) -> Modification<T>;
+pub trait Lexer {
+    type TokenTag : TokenType;
+
+    fn iter(&self) -> Iter<Self::TokenTag>;
+
+    fn modify(&mut self, tokens: &[Token<Self::TokenTag>], erased: Range<usize>, inserted: &str)
+        -> Modification<Self::TokenTag>;
 }
 
-impl <L, T> Iterator for &L where L : Lexer<T>, T : TokenType {
+/**
+ * Iterate over all tokens.
+ */
 
+pub struct Iter<'a, T> {
+    source: &'a str,
+    state: LexerState,
+    phantom: PhantomData<T>,
+    already_ended: bool,
+}
+
+impl <'a, T> Iter<'a, T> {
+    fn with_source(source: &'a str) -> Self {
+        Self{ source, state: LexerState::new(), phantom: PhantomData, already_ended: false, }
+    }
+}
+
+impl <'a, T> Iterator for Iter<'a, T> where T : TokenType {
+    type Item = Token<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match T::next_lexeme_internal(self.source, &self.state) {
+                (state, Some(token)) => {
+                    self.state = state;
+                    // If it's the end and we have already returned that, stop iteration
+                    if token.kind.is_end() {
+                        if self.already_ended {
+                            return None;
+                        }
+                        else {
+                            self.already_ended = true;
+                            return Some(token);
+                        }
+                    }
+                    else {
+                        return Some(token);
+                    }
+                },
+
+                (state, None) => {
+                    // Ignored token
+                    self.state = state;
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -68,5 +118,28 @@ pub struct StandardLexer<T> {
 impl <T> StandardLexer<T> {
     pub fn new() -> Self {
         Self{ source: String::new(), state: LexerState::new(), phantom: PhantomData, }
+    }
+}
+
+impl <T> Lexer for StandardLexer<T> where T : TokenType {
+    type TokenTag = T;
+
+    fn iter(&self) -> Iter<Self::TokenTag> {
+        Iter::with_source(&self.source)
+    }
+
+    fn modify(&mut self, tokens: &[Token<Self::TokenTag>], erased: Range<usize>, inserted: &str)
+        -> Modification<Self::TokenTag> {
+
+        // Modify the source string
+        // TODO: We could splice here
+        let erased_start = erased.start;
+        self.source.drain(erased);
+        self.source.insert_str(erased_start, inserted);
+
+        // TODO: Actual incremental logic
+
+        // TODO
+        Modification{ erasure: Erasure{ range: 0..0, phantom: PhantomData }, insertion: Insertion{ phantom: PhantomData } }
     }
 }
