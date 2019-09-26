@@ -60,7 +60,7 @@ impl <'a, T> Iterator for Iter<'a, T> where T : TokenType {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             match T::next_lexeme_internal(self.source, &self.state) {
-                (state, Some(kind)) => {
+                (state, Some(kind), lookahead) => {
                     let range = self.state.source_index..state.source_index;
                     let position = self.state.position;
                     self.state = state;
@@ -71,15 +71,15 @@ impl <'a, T> Iterator for Iter<'a, T> where T : TokenType {
                         }
                         else {
                             self.already_ended = true;
-                            return Some(Token{ range, kind, position });
+                            return Some(Token{ range, kind, position, lookahead });
                         }
                     }
                     else {
-                        return Some(Token{ range, kind, position });
+                        return Some(Token{ range, kind, position, lookahead });
                     }
                 },
 
-                (state, None) => {
+                (state, None, _) => {
                     // Ignored token
                     self.state = state;
                 }
@@ -113,13 +113,12 @@ pub struct Insertion<T> {
 
 pub struct StandardLexer<T> {
     source: String,
-    state: LexerState,
     phantom: PhantomData<T>,
 }
 
 impl <T> StandardLexer<T> {
     pub fn new() -> Self {
-        Self{ source: String::new(), state: LexerState::new(), phantom: PhantomData, }
+        Self{ source: String::new(), phantom: PhantomData, }
     }
 
     pub fn source(&self) -> &str {
@@ -130,13 +129,17 @@ impl <T> StandardLexer<T> {
         let mut lower = match tokens.binary_search_by_key(&erased.start, |t| t.range.start) {
             Ok(idx) | Err(idx) => idx,
         };
-        let upper = match tokens[lower..].binary_search_by_key(&erased.end, |t| t.range.end) {
-            Ok(idx) => idx + 1,
-            Err(idx) => idx,
+        let mut upper = match tokens[lower..].binary_search_by_key(&erased.end, |t| t.range.end) {
+            Ok(idx) | Err(idx) => idx,
         } + lower;
+
         if lower > 0 {
             lower -= 1;
         }
+        if upper < tokens.len() {
+            upper += 1;
+        }
+
         lower..upper
     }
 }

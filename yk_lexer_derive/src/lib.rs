@@ -141,15 +141,15 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
             _ => {
                 if let Some((state, kind)) = last_accepting {
                     // We succeeded before, return that
-                    return (state, kind);
+                    return (state, kind, last_lex_state.source_index);
                 }
                 else if first_lex_state.is_some() {
                     // No success before, return an error
-                    return (first_lex_state.unwrap(), Some(#enum_name::#error_token));
+                    return (first_lex_state.unwrap(), Some(#enum_name::#error_token), last_lex_state.source_index);
                 }
                 else {
                     // Nothing consumed, no more characters, it's just the end on input
-                    return (lex_state.clone(), Some(#enum_name::#end_token));
+                    return (lex_state.clone(), Some(#enum_name::#end_token), last_lex_state.source_index);
                 }
             },
         });
@@ -178,7 +178,7 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                 }
             }
 
-            fn next_lexeme_internal(src: &str, lex_state: &::#FRONT_LIBRARY::LexerState) -> (::#FRONT_LIBRARY::LexerState, Option<Self>) {
+            fn next_lexeme_internal(src: &str, lex_state: &::#FRONT_LIBRARY::LexerState) -> (::#FRONT_LIBRARY::LexerState, Option<Self>, usize) {
                 let start_idx = lex_state.source_index;
                 let source = &src[start_idx..];
                 let mut source_it = source.char_indices();
@@ -225,15 +225,15 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                     else {
                         if let Some((state, kind)) = last_accepting {
                             // We succeeded before, return that
-                            return (state, kind);
+                            return (state, kind, last_lex_state.source_index);
                         }
                         else if first_lex_state.is_some() {
                             // No success before, return an error
-                            return (first_lex_state.unwrap(), Some(#enum_name::#error_token));
+                            return (first_lex_state.unwrap(), Some(#enum_name::#error_token), last_lex_state.source_index);
                         }
                         else {
                             // Nothing consumed, no more characters, it's just the end on input
-                            return (lex_state.clone(), Some(#enum_name::#end_token));
+                            return (lex_state.clone(), Some(#enum_name::#end_token), last_lex_state.source_index);
                         }
                     }
                 }

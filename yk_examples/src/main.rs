@@ -32,7 +32,7 @@ mmlul
 foo foo foo_");
     // Iterating over all tokens
     for tok in lexer.iter() {
-        println!("{:?} - {:?} [{:?}]", &lexer.source()[tok.range], tok.kind, tok.position);
+        println!("{:?} - {:?} [{:?}] - ({} - {})", &lexer.source()[tok.range.clone()], tok.kind, tok.position, tok.range.end, tok.lookahead);
     }
     /*
     // Collecting them all

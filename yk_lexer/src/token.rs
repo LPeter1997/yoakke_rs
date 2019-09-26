@@ -11,6 +11,7 @@ pub struct Token<T> {
     pub range: Range<usize>,
     pub kind: T,
     pub position: Position,
+    pub lookahead: usize,
 }
 
 /// The type that the derive-macro implements on the user-defined enum.
@@ -21,5 +22,5 @@ pub trait TokenType : Sized {
     }
 
     fn is_end(&self) -> bool;
-    fn next_lexeme_internal(src: &str, state: &LexerState) -> (LexerState, Option<Self>);
+    fn next_lexeme_internal(src: &str, state: &LexerState) -> (LexerState, Option<Self>, usize);
 }
