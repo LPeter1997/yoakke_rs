@@ -15,6 +15,11 @@ pub struct RuleSet {
 
 #[derive(Clone)]
 pub enum Node {
+    Toplevel{
+        subnode: Box<Node>,
+        action: Block,
+    },
+
     Alternative{
         first: Box<Node>,
         second: Box<Node>,
@@ -23,11 +28,6 @@ pub enum Node {
     Sequence{
         first: Box<Node>,
         second: Box<Node>,
-    },
-
-    Transformation {
-        subnode: Box<Node>,
-        action: Block,
     },
 
     Literal(Lit),
@@ -70,10 +70,26 @@ impl Parse for Rule {
     }
 }
 
+impl Node {
+    fn parse_toplevel(input: ParseStream) -> Result<Box<Node>> {
+        unimplemented!();
+    }
+
+    fn parse_alternative(input: ParseStream) -> Result<Box<Node>> {
+        unimplemented!();
+    }
+
+    fn parse_sequence(input: ParseStream) -> Result<Box<Node>> {
+        unimplemented!();
+    }
+
+    fn parse_literal(input: ParseStream) -> Result<Box<Node>> {
+        unimplemented!();
+    }
+}
+
 impl Parse for Node {
     fn parse(input: ParseStream) -> Result<Self> {
-        // TODO
-        let e = input.parse()?;
-        Ok(Node::Literal(e))
+        Self::parse_toplevel(input)
     }
 }
