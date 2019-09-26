@@ -2,7 +2,7 @@
  * Backus–Naur form AST representation and parsing.
  */
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use syn::{Result, Token, Expr, Block, Ident, Lit, Path};
 use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
@@ -39,6 +39,82 @@ pub enum LiteralNode {
     Ident(Path),
     Lit(Lit),
 }
+
+/**
+ * Recursion check.
+ */
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LeftRecursion {
+    None,
+    Direct,
+    Indirect,
+}
+
+impl RuleSet {
+    fn left_recursion_impl(
+        n: &Node, rule: &str, rules: &RuleSet, direct: bool, touched: &mut HashSet<String>) -> LeftRecursion {
+
+        match n {
+            Node::Alternative{ first, second } => {
+                let lr = Self::left_recursion_impl(first, rule, rules, direct, touched);
+                let rr = Self::left_recursion_impl(second, rule, rules, direct, touched);
+                match (lr, rr) {
+                    (LeftRecursion::Indirect, _) | (_, LeftRecursion::Indirect) => LeftRecursion::Indirect,
+                    (LeftRecursion::Direct, _) | (_, LeftRecursion::Direct) => LeftRecursion::Direct,
+                    _ => LeftRecursion::None,
+                }
+            },
+            Node::Sequence{ first, .. } => Self::left_recursion_impl(first, rule, rules, direct, touched),
+            Node::Transformation{ subnode, .. } => Self::left_recursion_impl(subnode, rule, rules, direct, touched),
+            Node::Literal(lit) => {
+                match lit {
+                    LiteralNode::Lit(_) => LeftRecursion::None,
+                    LiteralNode::Ident(path) => {
+                        if path.leading_colon.is_none() && path.segments.len() == 1 {
+                            // Simple identifier
+                            let ident = path.segments[0].ident.to_string();
+                            if ident == rule {
+                                if direct {
+                                    LeftRecursion::Direct
+                                }
+                                else {
+                                    LeftRecursion::Indirect
+                                }
+                            }
+                            else if touched.contains(&ident) {
+                                LeftRecursion::None
+                            }
+                            else {
+                                // Check if it's a rule
+                                if let Some(sr) = rules.rules.get(&ident) {
+                                    touched.insert(ident);
+                                    Self::left_recursion_impl(sr, rule, rules, false, touched)
+                                }
+                                else {
+                                    // Not a rule
+                                    LeftRecursion::None
+                                }
+                            }
+                        }
+                        else {
+                            LeftRecursion::None
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn left_recursion(rules: &RuleSet, rule: &str) -> LeftRecursion {
+        match rules.rules.get(rule) {
+            Some(n) => Self::left_recursion_impl(n, rule, rules, true, &mut HashSet::new()),
+            None => LeftRecursion::None,
+        }
+    }
+}
+
+// Parse ///////////////////////////////////////////////////////////////////////
 
 /**
  * The allowed syntax is:
