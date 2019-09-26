@@ -2,8 +2,9 @@
  * Structures and traits for a lexer.
  */
 
-use std::ops::Range;
 use std::marker::PhantomData;
+use std::ops::Range;
+use std::convert::TryFrom;
 use crate::position::Position;
 use crate::token::{TokenType, Token};
 
@@ -160,8 +161,38 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType {
         self.source.drain(erased.clone());
         self.source.insert_str(erased_start, inserted);
 
+        // 'invalid' is the range of tokens that are definitely affected and removed
+        // This doesn't necessarily mean that this will be the only removed range
+        // as overriding tokens after that is still possible
         let mut invalid = Self::invalidated_range(tokens, &erased);
-        // TODO
+        // How much the characters shifted from the source change
+        let offset = isize::try_from(inserted.len()).unwrap() - isize::try_from(invalid.len()).unwrap();
+
+        // We start from the beginning of invalid
+        // We reconstruct a lexer state for that and start lexing until we are past the
+        // end of invalid territory and found an equivalent token
+        // If we are past the invalidation point but we find no equivalent token,
+        // we need to modify the invalidation range to include that token.
+
+        //let mut ins = Vec::new();
+        // Construct an initial state
+        let mut start_state = if invalid.start > 0 {
+            let last_tok = &tokens[invalid.start - 1];
+            let last_idx = last_tok.range.start;
+            LexerState{
+                source_index: last_idx,
+                position: last_tok.position,
+                last_char: self.source[..last_idx].chars().rev().next(),
+            }
+        }
+        else {
+            LexerState::new()
+        };
+
+        let mut idx = invalid.start;
+        loop {
+
+        }
 
         // TODO
         Modification{ erasure: Erasure{ range: 0..0, phantom: PhantomData }, insertion: Insertion{ phantom: PhantomData } }
