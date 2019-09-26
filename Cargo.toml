@@ -6,5 +6,7 @@ members = [
     "yk_dense_fsa",
     "yk_lexer_derive",
     "yk_lexer",
+    "yk_parser",
+    "yk_parser_derive",
     "yk_examples",
 ]
