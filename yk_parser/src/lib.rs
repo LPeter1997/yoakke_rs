@@ -1,4 +1,7 @@
 
 extern crate syn;
+extern crate yk_parser_derive;
 
-mod bnf;
+pub mod bnf;
+
+pub use yk_parser_derive::yk_parser;
