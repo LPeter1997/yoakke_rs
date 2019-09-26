@@ -31,8 +31,12 @@ fn print_tokens<T>(src: &str, tokens: &[yk_lexer::Token<T>]) where T : std::fmt:
 }
 
 yk_parser!{
-    foo ::= 1 | 2;
-    bar ::= 1;
+    foo ::=
+          | 1 { }
+          | 2 {}
+          ;
+
+    bar ::= 1 {};
 }
 
 fn main() {

@@ -15,7 +15,7 @@ pub struct RuleSet {
 
 #[derive(Clone)]
 pub enum Node {
-    Toplevel{
+    Transformation{
         subnode: Box<Node>,
         action: Block,
     },
@@ -71,25 +71,77 @@ impl Parse for Rule {
 }
 
 impl Node {
-    fn parse_toplevel(input: ParseStream) -> Result<Box<Node>> {
-        unimplemented!();
+    fn parse_toplevel_alternative(input: ParseStream) -> Result<Box<Node>> {
+        // Consume optional '|'
+        let _ = input.parse::<Token![|]>();
+        // Left, pipe and right
+        let first = Self::parse_toplevel_sequence(input)?;
+        if input.parse::<Token![|]>().is_ok() {
+            let second = Self::parse_toplevel_alternative_cont(input)?;
+            Ok(Box::new(Node::Alternative{ first, second, }))
+        }
+        else {
+            Ok(first)
+        }
+    }
+
+    fn parse_toplevel_alternative_cont(input: ParseStream) -> Result<Box<Node>> {
+        // Left, pipe and right
+        let first = Self::parse_toplevel_sequence(input)?;
+        if input.parse::<Token![|]>().is_ok() {
+            let second = Self::parse_toplevel_alternative_cont(input)?;
+            Ok(Box::new(Node::Alternative{ first, second, }))
+        }
+        else {
+            Ok(first)
+        }
+    }
+
+    fn parse_toplevel_sequence(input: ParseStream) -> Result<Box<Node>> {
+        let subnode = Self::parse_sequence(input)?;
+        let action = input.parse::<Block>()?;
+        Ok(Box::new(Node::Transformation{ subnode, action, }))
     }
 
     fn parse_alternative(input: ParseStream) -> Result<Box<Node>> {
-        unimplemented!();
+        // Left, pipe and right
+        let first = Self::parse_sequence(input)?;
+        if input.parse::<Token![|]>().is_ok() {
+            let second = Self::parse_alternative(input)?;
+            Ok(Box::new(Node::Alternative{ first, second, }))
+        }
+        else {
+            Ok(first)
+        }
     }
 
     fn parse_sequence(input: ParseStream) -> Result<Box<Node>> {
-        unimplemented!();
+        // Left, pipe and right
+        let first = Self::parse_literal(input)?;
+        let second = Self::parse_sequence(input);
+        if second.is_ok() {
+            Ok(Box::new(Node::Sequence{ first, second: second.unwrap(), }))
+        }
+        else {
+            Ok(first)
+        }
     }
 
     fn parse_literal(input: ParseStream) -> Result<Box<Node>> {
-        unimplemented!();
+        // TODO: Allow parens
+        /*if input.parse::<Token![(]>().is_ok() {
+            let n = parse_alternative(input)?;
+            let _ = input.parse::<Token![)]>()?;
+            Ok(n)
+        }
+        else {*/
+            Ok(Box::new(Node::Literal(input.parse()?)))
+        //}
     }
 }
 
 impl Parse for Node {
     fn parse(input: ParseStream) -> Result<Self> {
-        Self::parse_toplevel(input)
+        Self::parse_toplevel_alternative(input).map(|x| *x)
     }
 }
