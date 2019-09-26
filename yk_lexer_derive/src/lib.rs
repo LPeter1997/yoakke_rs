@@ -279,8 +279,7 @@ fn parse_attributes(enm: &ItemEnum) -> LexerData {
                 assert!(current_def.is_none(), "For now only one definition per attribute!");
                 // TODO: Allow '=' too
                 let token = attr.parse_args::<LitStr>().unwrap();
-                // TODO: Escape so it actually wouldn't be a regex
-                let regex_str = token.value();
+                let regex_str = regex::escape(&token.value());
                 current_def = Some(TokenDefinition{
                     variant_ident: variant_ident.clone(),
                     regex_str,

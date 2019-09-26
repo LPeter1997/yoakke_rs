@@ -6,22 +6,43 @@ use yk_lexer::{TokenType, Lexer};
 use yk_parser::yk_parser;
 
 #[derive(yk_lexer::Lexer, PartialEq, Eq, Debug)]
-enum MyTokenType {
+enum TokTy {
     #[error]
     Error,
 
     #[end]
     End,
 
-    #[c_ident]
-    Ident,
-
-    #[token("foo")]
-    Bar,
-
     #[regex(r"[ \r\n]")]
     #[ignore]
     Whitespace,
+
+    #[c_ident]
+    Ident,
+
+    #[regex("[0-9]+")]
+    IntLit,
+
+    #[token("+")]
+    Add,
+
+    #[token("-")]
+    Sub,
+
+    #[token("*")]
+    Mul,
+
+    #[token("/")]
+    Div,
+
+    #[token("^")]
+    Exp,
+
+    #[token("(")]
+    LP,
+
+    #[token(")")]
+    RP,
 }
 
 yk_parser!{
@@ -30,22 +51,22 @@ yk_parser!{
         ;
 
     addition ::=
-        | addition '+' multiplication { e0 + e1 }
-        | addition '-' multiplication { e0 - e1 }
+        | addition TokTy::Add multiplication { e0 + e1 }
+        | addition TokTy::Sub multiplication { e0 - e1 }
         ;
 
     multiplication ::=
-        | multiplication '*' exponentiation { e0 * e1 }
-        | multiplication '/' exponentiation { e0 / e1 }
+        | multiplication TokTy::Mul exponentiation { e0 * e1 }
+        | multiplication TokTy::Div exponentiation { e0 / e1 }
         ;
 
     exponentiation ::=
-        | atomic '^' exponentiation { i32::pow(e0, e1) }
+        | atomic TokTy::Exp exponentiation { i32::pow(e0, e1) }
         ;
 
     atomic ::=
-        | IntLit { to_i32(e0) }
-        | '(' expr ')' { e1 }
+        | TokTy::IntLit { to_i32(e0) }
+        | TokTy::LP expr TokTy::RP { e1 }
         ;
 }
 

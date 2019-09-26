@@ -3,7 +3,7 @@
  */
 
 use std::collections::HashMap;
-use syn::{Result, Token, Expr, Block, Ident, Lit};
+use syn::{Result, Token, Expr, Block, Ident, Lit, Path};
 use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
 
@@ -36,7 +36,7 @@ pub enum Node {
 
 #[derive(Clone)]
 pub enum LiteralNode {
-    Ident(Ident),
+    Ident(Path),
     Lit(Lit),
 }
 

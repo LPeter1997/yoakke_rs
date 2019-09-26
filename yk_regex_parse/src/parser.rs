@@ -74,6 +74,25 @@ impl <'a> Chars<'a> {
 }
 
 /**
+ * Escaping a regex so it becomes a literal string.
+ */
+
+pub fn escape(source: &str) -> String {
+    let mut s = String::new();
+    s.reserve(source.len());
+    for c in source.chars() {
+        if is_special_char(c) {
+            s.push('\\');
+            s.push(c);
+        }
+        else {
+            s.push(c);
+        }
+    }
+    s
+}
+
+/**
  * Actual parsing.
  */
 
