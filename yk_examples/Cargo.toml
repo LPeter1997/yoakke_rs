@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 yk_lexer = { path = "../yk_lexer" }
+yk_parser = { path = "../yk_parser" }

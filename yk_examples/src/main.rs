@@ -1,7 +1,9 @@
 
 extern crate yk_lexer;
+extern crate yk_parser;
 
 use yk_lexer::{TokenType, Lexer};
+use yk_parser::yk_parser;
 
 #[derive(yk_lexer::Lexer, PartialEq, Eq, Debug)]
 enum MyTokenType {
@@ -28,7 +30,13 @@ fn print_tokens<T>(src: &str, tokens: &[yk_lexer::Token<T>]) where T : std::fmt:
     }
 }
 
+yk_parser!{
+    foo ::= 1 | 2;
+    bar ::= 1;
+}
+
 fn main() {
+    /*
     // Creating a lexer
     let mut lexer = MyTokenType::lexer();
     let mut tokens = Vec::new();
@@ -40,4 +48,5 @@ fn main() {
     let m = lexer.modify(&tokens, 5..5, " there");
     tokens.splice(m.erased, m.inserted);
     print_tokens(lexer.source(), &tokens);
+    */
 }

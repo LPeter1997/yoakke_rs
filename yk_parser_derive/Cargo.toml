@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 syn = { version = "1.0.5", features = ["full"] }
 quote = "1.0.2"
+yk_parser_internal = { path = "../yk_parser_internal" }
 
 [lib]
 proc-macro = true

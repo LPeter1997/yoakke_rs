@@ -1,5 +1,5 @@
 [package]
-name = "yk_parser"
+name = "yk_parser_internal"
 version = "0.1.0"
 authors = ["Peter Lenkefi <lenkefi.peti@gmail.com>"]
 edition = "2018"
@@ -8,5 +8,4 @@ edition = "2018"
 
 [dependencies]
 syn = { version = "1.0.5", features = ["full"] }
-yk_parser_derive = { path = "../yk_parser_derive" }
-yk_parser_internal = { path = "../yk_parser_internal" }
+quote = "1.0.2"

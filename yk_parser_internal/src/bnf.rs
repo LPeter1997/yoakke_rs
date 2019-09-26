@@ -3,7 +3,7 @@
  */
 
 use std::collections::HashMap;
-use syn::{Result, Token, Expr, Block, Ident};
+use syn::{Result, Token, Expr, Block, Ident, Lit};
 use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
 
@@ -30,7 +30,7 @@ pub enum Node {
         action: Block,
     },
 
-    Literal(Expr),
+    Literal(Lit),
 }
 
 /**
