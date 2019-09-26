@@ -45,13 +45,17 @@ pub trait Lexer {
 pub struct Iter<'a, T> {
     source: &'a str,
     state: LexerState,
-    phantom: PhantomData<T>,
     already_ended: bool,
+    phantom: PhantomData<T>,
 }
 
 impl <'a, T> Iter<'a, T> {
+    fn with_source_and_state(source: &'a str, state: LexerState) -> Self {
+        Self{ source, state, already_ended: false, phantom: PhantomData, }
+    }
+
     fn with_source(source: &'a str) -> Self {
-        Self{ source, state: LexerState::new(), phantom: PhantomData, already_ended: false, }
+        Self::with_source_and_state(source, LexerState::new())
     }
 }
 
@@ -94,18 +98,8 @@ impl <'a, T> Iterator for Iter<'a, T> where T : TokenType {
  */
 
 pub struct Modification<T> {
-    erasure: Erasure<T>,
-    insertion: Insertion<T>,
-}
-
-pub struct Erasure<T> {
-    range: Range<usize>,
-    phantom: PhantomData<T>,
-}
-
-pub struct Insertion<T> {
-    // TODO
-    phantom: PhantomData<T>,
+    pub erased: Range<usize>,
+    pub inserted: Vec<Token<T>>,
 }
 
 /**
@@ -117,7 +111,7 @@ pub struct StandardLexer<T> {
     phantom: PhantomData<T>,
 }
 
-impl <T> StandardLexer<T> {
+impl <T> StandardLexer<T> where T : PartialEq {
     pub fn new() -> Self {
         Self{ source: String::new(), phantom: PhantomData, }
     }
@@ -143,15 +137,29 @@ impl <T> StandardLexer<T> {
 
         lower..upper
     }
+
+    fn to_isize_range(r: &Range<usize>) -> Range<isize> {
+        isize::try_from(r.start).unwrap()..isize::try_from(r.end).unwrap()
+    }
+
+    fn equivalent_tokens(t1: &Token<T>, t2: &Token<T>, offs2: isize) -> bool {
+        let r1 = Self::to_isize_range(&t1.range);
+        let r2 = Self::to_isize_range(&t2.range);
+        let r2 = (r2.start + offs2)..(r2.end + offs2);
+
+        r1 == r2 && t1.lookahead == t2.lookahead && t1.kind == t2.kind
+    }
 }
 
-impl <T> Lexer for StandardLexer<T> where T : TokenType {
+impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
     type TokenTag = T;
 
     fn iter(&self) -> Iter<Self::TokenTag> {
         Iter::with_source(&self.source)
     }
 
+    // TODO: The actual lexing sould happen when the returned Modification is dropped
+    // Similar to Drain iterator
     fn modify(&mut self, tokens: &[Token<Self::TokenTag>], erased: Range<usize>, inserted: &str)
         -> Modification<Self::TokenTag> {
 
@@ -166,7 +174,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType {
         // as overriding tokens after that is still possible
         let mut invalid = Self::invalidated_range(tokens, &erased);
         // How much the characters shifted from the source change
-        let offset = isize::try_from(inserted.len()).unwrap() - isize::try_from(invalid.len()).unwrap();
+        let offset = isize::try_from(inserted.len()).unwrap() - isize::try_from(erased.len()).unwrap();
 
         // We start from the beginning of invalid
         // We reconstruct a lexer state for that and start lexing until we are past the
@@ -174,9 +182,8 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType {
         // If we are past the invalidation point but we find no equivalent token,
         // we need to modify the invalidation range to include that token.
 
-        //let mut ins = Vec::new();
         // Construct an initial state
-        let mut start_state = if invalid.start > 0 {
+        let start_state = if invalid.start > 0 {
             let last_tok = &tokens[invalid.start - 1];
             let last_idx = last_tok.range.start;
             LexerState{
@@ -189,12 +196,50 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType {
             LexerState::new()
         };
 
-        let mut idx = invalid.start;
-        loop {
+        // The index where we can count on equivalent state
+        let last_insertion = erased.start + inserted.len();
 
+        let mut inserted = Vec::new();
+
+        // Now we go until we hit an equivalent state
+        let mut it = Iter::<T>::with_source_and_state(&self.source, start_state);
+        while let Some(token) = it.next() {
+            if token.range.start > last_insertion {
+                // Possibly an equivalent state
+                if invalid.end < tokens.len() {
+                    // Compare tokens
+                    let existing = &tokens[invalid.end];
+                    if token.range.end <= existing.range.start {
+                        // We just insert, the new token is completely before the existing one
+                        inserted.push(token);
+                    }
+                    else {
+                        // The new token is after or intersects with the existing one
+                        // We need to check for equivalence
+                        // If equivalent, we are done
+                        // If not equivalent, we need to erase that token
+                        if Self::equivalent_tokens(existing, &token, offset) {
+                            // Equivalent, we are done
+                            break;
+                        }
+                        else {
+                            // Not equivalent, erase, insert
+                            invalid.end += 1;
+                            inserted.push(token);
+                        }
+                    }
+                }
+                else {
+                    // We are inserting at the end
+                    inserted.push(token);
+                }
+            }
+            else {
+                // No possibility of an ewuivalent state, just insert
+                inserted.push(token);
+            }
         }
 
-        // TODO
-        Modification{ erasure: Erasure{ range: 0..0, phantom: PhantomData }, insertion: Insertion{ phantom: PhantomData } }
+        Modification{ erased: invalid, inserted }
     }
 }

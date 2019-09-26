@@ -17,7 +17,7 @@ pub struct Token<T> {
 /// The type that the derive-macro implements on the user-defined enum.
 /// This is where the actual lexer logic is injected.
 pub trait TokenType : Sized {
-    fn lexer() -> StandardLexer<Self> {
+    fn lexer() -> StandardLexer<Self> where Self : PartialEq {
         StandardLexer::new()
     }
 

@@ -12,5 +12,5 @@ mod token;
 pub use yk_lexer_derive::Lexer;
 
 pub use position::Position;
-pub use lexer::{LexerState, Lexer, StandardLexer, Modification, Insertion, Erasure};
+pub use lexer::{LexerState, Lexer, StandardLexer, Modification};
 pub use token::{TokenType, Token};
