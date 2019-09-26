@@ -24,19 +24,29 @@ enum MyTokenType {
     Whitespace,
 }
 
-fn print_tokens<T>(src: &str, tokens: &[yk_lexer::Token<T>]) where T : std::fmt::Debug {
-    for t in tokens {
-        println!("{:?} - {:?} [{:?}]", &src[t.range.clone()], t.kind, t.position);
-    }
-}
-
 yk_parser!{
-    foo ::=
-          | 1 { }
-          | 2 {}
-          ;
+    expr ::=
+        | addition
+        ;
 
-    bar ::= 1 {};
+    addition ::=
+        | addition '+' multiplication { e0 + e1 }
+        | addition '-' multiplication { e0 - e1 }
+        ;
+
+    multiplication ::=
+        | multiplication '*' exponentiation { e0 * e1 }
+        | multiplication '/' exponentiation { e0 / e1 }
+        ;
+
+    exponentiation ::=
+        | atomic '^' exponentiation { i32::pow(e0, e1) }
+        ;
+
+    atomic ::=
+        | IntLit { to_i32(e0) }
+        | '(' expr ')' { e1 }
+        ;
 }
 
 fn main() {

@@ -18,6 +18,10 @@ pub fn yk_parser(item: TokenStream) -> TokenStream {
 
     // Parse the BNF
     let bnf = parse_macro_input!(item as bnf::RuleSet);
+    println!("Top level: {}", bnf.top_rule.0);
+    for (k, v) in &bnf.rules {
+        println!("{}", k);
+    }
 
     TokenStream::new()
 }

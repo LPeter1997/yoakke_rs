@@ -9,6 +9,7 @@ use syn::punctuated::Punctuated;
 
 #[derive(Clone)]
 pub struct RuleSet {
+    pub top_rule: (String, Node),
     pub rules: HashMap<String, Node>,
     pub literal_matcher: (),
 }
@@ -30,7 +31,13 @@ pub enum Node {
         second: Box<Node>,
     },
 
-    Literal(Lit),
+    Literal(LiteralNode),
+}
+
+#[derive(Clone)]
+pub enum LiteralNode {
+    Ident(Ident),
+    Lit(Lit),
 }
 
 /**
@@ -52,10 +59,14 @@ impl Parse for RuleSet {
     fn parse(input: ParseStream) -> Result<Self> {
         let nnp = input.parse_terminated::<Rule, Token![;]>(Rule::parse)?;
         let mut rules = HashMap::new();
+        let mut top_rule = None;
         for (k, v) in nnp.iter().map(|x| (x.ident.to_string(), x.node.clone())) {
+            if top_rule.is_none() {
+                top_rule = Some((k.clone(), v.clone()));
+            }
             rules.insert(k, v);
         }
-        Ok(RuleSet{ rules, literal_matcher: (), })
+        Ok(RuleSet{ top_rule: top_rule.unwrap(), rules, literal_matcher: (), })
     }
 }
 
@@ -99,8 +110,13 @@ impl Node {
 
     fn parse_toplevel_sequence(input: ParseStream) -> Result<Box<Node>> {
         let subnode = Self::parse_sequence(input)?;
-        let action = input.parse::<Block>()?;
-        Ok(Box::new(Node::Transformation{ subnode, action, }))
+        let action = input.parse::<Block>();
+        if action.is_ok() {
+            Ok(Box::new(Node::Transformation{ subnode, action: action.unwrap(), }))
+        }
+        else {
+            Ok(subnode)
+        }
     }
 
     fn parse_alternative(input: ParseStream) -> Result<Box<Node>> {
@@ -135,7 +151,12 @@ impl Node {
             Ok(n)
         }
         else {*/
-            Ok(Box::new(Node::Literal(input.parse()?)))
+            if let Ok(lit) = input.parse::<Lit>() {
+                Ok(Box::new(Node::Literal(LiteralNode::Lit(lit))))
+            }
+            else {
+                Ok(Box::new(Node::Literal(LiteralNode::Ident(input.parse()?))))
+            }
         //}
     }
 }
