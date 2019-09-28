@@ -6,7 +6,7 @@ extern crate yk_parser_internal;
 
 use proc_macro::TokenStream;
 use syn::parse_macro_input;
-use yk_parser_internal::bnf;
+use yk_parser_internal::{bnf, generate_code};
 
 // Identifier for the front-end lexer library
 const FRONT_LIBRARY_NAME: &str = "yk_parser";
@@ -18,10 +18,9 @@ pub fn yk_parser(item: TokenStream) -> TokenStream {
 
     // Parse the BNF
     let bnf = parse_macro_input!(item as bnf::RuleSet);
-    println!("Top level: {}", bnf.top_rule.0);
-    for (k, v) in &bnf.rules {
-        println!("{}", k);
-    }
+    let code = generate_code(&bnf);
 
-    TokenStream::new()
+    println!("{}", code);
+
+    code.into()
 }
