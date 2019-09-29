@@ -45,15 +45,22 @@ enum TokTy {
     RP,
 }
 
+#[derive(Debug)]
+enum AST {
+    Add(Box<AST>, Box<AST>),
+    Sub(Box<AST>, Box<AST>),
+    Atom(i32),
+}
+
 yk_parser!{
     addition ::=
-        | atomic '+' addition { e0 + e2 }
-        | atomic '-' addition { e0 - e2 }
+        | atomic '+' addition { Box::new(AST::Add(e0, e2)) }
+        | atomic '-' addition { Box::new(AST::Sub(e0, e2)) }
         ;
 
     atomic ::=
-        | '0' { 0 }
-        | '1' { 1 }
+        | '0' { Box::new(AST::Atom(0)) }
+        | '1' { Box::new(AST::Atom(1)) }
         ;
 }
 

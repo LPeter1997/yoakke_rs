@@ -23,11 +23,19 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 fn generate_code_rule(rs: &bnf::RuleSet,
     name: &str, node: &bnf::Node) -> TokenStream {
 
-    let (code, _) = generate_code_node(rs, 0, node);
+    let (code, counter) = generate_code_node(rs, 0, node);
     let fname = quote::format_ident!("parse_{}", name);
 
+    let ret_ty: Vec<_> = (0..counter).map(|_| quote!{ impl Promoter }).collect();
+
     quote!{
-        fn #fname<I>(src: I) -> impl Promoter where I : ::std::iter::Iterator + ::std::clone::Clone {
+        fn #fname<I>(src: I) -> ::std::result::Result<(I, (#(#ret_ty),*)), ()>
+            where I : ::std::iter::Iterator + ::std::clone::Clone,
+            <I as std::iter::Iterator>::Item :
+                // TODO: Collect what!
+                  ::std::cmp::PartialEq<char>
+                {
+
             #code
         }
     }
@@ -108,12 +116,12 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
     let (code2, counter2) = generate_code_node(rs, counter1, second);
 
     let params1 = param_list(counter..counter1);
-    let params2 = param_list(counter..counter2);
+    let params2 = param_list(counter1..counter2);
 
     let code = quote!{
         if let ::std::result::Result::Ok((src, (#params1))) = { #code1 } {
             if let ::std::result::Result::Ok((src, (#params2))) = { #code2 } {
-                ::std::result::Result::Ok((src, (#params2)))
+                ::std::result::Result::Ok((src, (#params1, #params2)))
             }
             else {
                 ::std::result::Result::Err(())
