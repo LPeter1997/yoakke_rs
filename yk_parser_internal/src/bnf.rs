@@ -220,20 +220,17 @@ impl Node {
     }
 
     fn parse_literal(input: ParseStream) -> Result<Box<Node>> {
-        // TODO: Allow parens
-        /*if input.parse::<Token![(]>().is_ok() {
-            let n = parse_alternative(input)?;
-            let _ = input.parse::<Token![)]>()?;
-            Ok(n)
+        if let Ok(lit) = input.parse::<Lit>() {
+            Ok(Box::new(Node::Literal(LiteralNode::Lit(lit))))
         }
-        else {*/
-            if let Ok(lit) = input.parse::<Lit>() {
-                Ok(Box::new(Node::Literal(LiteralNode::Lit(lit))))
-            }
-            else {
-                Ok(Box::new(Node::Literal(LiteralNode::Ident(input.parse()?))))
-            }
-        //}
+        else if let Ok(path) = input.parse::<Path>() {
+            Ok(Box::new(Node::Literal(LiteralNode::Ident(path))))
+        }
+        else {
+            let paren_content;
+            syn::parenthesized!(paren_content in input);
+            Ok(Self::parse_alternative(&paren_content)?)
+        }
     }
 }
 
