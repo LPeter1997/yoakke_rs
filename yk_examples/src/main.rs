@@ -46,27 +46,14 @@ enum TokTy {
 }
 
 yk_parser!{
-    expr ::=
-        | addition
-        ;
-
     addition ::=
-        | addition TokTy::Add multiplication { e0 + e1 }
-        | addition TokTy::Sub multiplication { e0 - e1 }
-        ;
-
-    multiplication ::=
-        | multiplication TokTy::Mul exponentiation { e0 * e1 }
-        | multiplication TokTy::Div exponentiation { e0 / e1 }
-        ;
-
-    exponentiation ::=
-        | atomic TokTy::Exp exponentiation { i32::pow(e0, e1) }
+        | atomic '+' addition { e0 + e2 }
+        | atomic '-' addition { e0 - e2 }
         ;
 
     atomic ::=
-        | TokTy::IntLit { to_i32(e0) }
-        | TokTy::LP expr TokTy::RP { e1 }
+        | '0' { 0 }
+        | '1' { 1 }
         ;
 }
 
