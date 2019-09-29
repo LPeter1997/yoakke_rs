@@ -26,12 +26,12 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let (code, counter) = generate_code_node(rs, 0, node);
     let fname = quote::format_ident!("parse_{}", name);
 
-    let ret_ty: Vec<_> = (0..counter).map(|_| quote!{ impl Promoter }).collect();
+    let ret_ty: Vec<_> = (0..counter).map(|_| quote!{ /* impl Promoter */ Box<AST> }).collect();
 
     quote!{
         fn #fname<I>(src: I) -> ::std::result::Result<(I, (#(#ret_ty),*)), ()>
             where I : ::std::iter::Iterator + ::std::clone::Clone,
-            <I as std::iter::Iterator>::Item :
+            <I as ::std::iter::Iterator>::Item :
                 // TODO: Collect what!
                   ::std::cmp::PartialEq<char>
                 {
@@ -165,7 +165,7 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
         if rs.rules.contains_key(&id) {
             let fname = quote::format_ident!("parse_{}", id);
             let code = quote!{
-                #fname(src)
+                #fname(src.clone())
             };
             return (code, counter + 1);
         }

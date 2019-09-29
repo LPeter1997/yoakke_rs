@@ -56,6 +56,7 @@ yk_parser!{
     addition ::=
         | atomic '+' addition { Box::new(AST::Add(e0, e2)) }
         | atomic '-' addition { Box::new(AST::Sub(e0, e2)) }
+        | atomic
         ;
 
     atomic ::=
@@ -65,6 +66,9 @@ yk_parser!{
 }
 
 fn main() {
+    let src = "1+1-0-1+1+0+0+0";
+    let r = parse_addition(src.chars());
+    println!("{:?}", r);
     /*
     // Creating a lexer
     let mut lexer = MyTokenType::lexer();
