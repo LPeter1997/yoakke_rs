@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use syn::{Result, Token, Expr, Block, Ident, Lit, Path};
 use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
+use crate::syn_extensions::parse_parenthesized_fn;
 
 #[derive(Clone)]
 pub struct RuleSet {
@@ -227,9 +228,8 @@ impl Node {
             Ok(Box::new(Node::Literal(LiteralNode::Ident(path))))
         }
         else {
-            let paren_content;
-            syn::parenthesized!(paren_content in input);
-            Ok(Self::parse_alternative(&paren_content)?)
+            let (_, content) = parse_parenthesized_fn(input, Self::parse_alternative)?;
+            Ok(content)
         }
     }
 }
