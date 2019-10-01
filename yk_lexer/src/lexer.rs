@@ -207,6 +207,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
         let last_insertion = erased.start + inserted.len();
 
         let mut inserted = Vec::new();
+        let mut hit_end = false;
 
         // Now we go until we hit an equivalent state
         let mut it = Iter::<T>::with_source_and_state(&self.source, start_state);
@@ -240,6 +241,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                     else {
                         // We are inserting at the end
                         inserted.push(token);
+                        hit_end = true;
                         break 'inner;
                     }
                 }
@@ -264,10 +266,15 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                     else {
                         // We are inserting at the end
                         inserted.push(token);
+                        hit_end = true;
                         break 'inner;
                     }
                 }
             }
+        }
+
+        if hit_end {
+            invalid.end = tokens.len();
         }
 
         Modification{ erased: invalid, inserted, offset }

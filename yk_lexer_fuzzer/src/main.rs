@@ -103,7 +103,7 @@ fn fuzz_epoch(edits: usize, strat: &dyn FuzzStrategy) {
         if tokens != orig_tokens {
             println!("While editing source '{}'", orig_source);
             println!("erase: {:?}, insert: '{}'", erased, inserted);
-            println!("That became '{}'\n", lexer.source());
+            println!("That became          '{}'\n", lexer.source());
 
             print!("Expected: [");
             for t in &orig_tokens {
