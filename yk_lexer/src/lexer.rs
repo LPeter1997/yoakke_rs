@@ -140,26 +140,35 @@ impl <T> StandardLexer<T> where T : PartialEq {
         lower..upper
     }
 
-    fn offset_urange(r: &Range<usize>, i: isize) -> Range<usize> {
+    fn offset_urange(r: &Range<usize>, i: isize) -> Option<Range<usize>> {
         if i > 0 {
             let ui = usize::try_from(i).unwrap();
-            (r.start + ui)..(r.end + ui)
+            Some((r.start + ui)..(r.end + ui))
         }
         else {
             let ui = usize::try_from(-i).unwrap();
-            (r.start - ui)..(r.end - ui)
+            if ui > r.start {
+                None
+            }
+            else {
+                Some((r.start - ui)..(r.end - ui))
+            }
         }
     }
 
     fn equivalent_tokens(src: &str, t1: &Token<T>, t2: &Token<T>, offs2: isize) -> bool {
         let r1 = &t1.range;
         let r2 = &t2.range;
-        let r2 = Self::offset_urange(r2, offs2);
 
-           r1 == &r2
-        && t1.lookahead == t2.lookahead
-        && t1.kind == t2.kind
-        && src[r1.clone()] == src[r2]
+        if let Some(r2) = Self::offset_urange(r2, offs2) {
+               r1 == &r2
+            && t1.lookahead == t2.lookahead
+            && t1.kind == t2.kind
+            && src[r1.clone()] == src[r2]
+        }
+        else {
+            false
+        }
     }
 }
 

@@ -46,11 +46,11 @@ enum TokenKind {
 const charset: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ()0123456789 \n";
 
 fn main() {
-    let seed = if true {
+    let seed = if false {
         rnd::seed_from_system_time()
     }
     else {
-        1569946851
+        1569947473
     };
     rnd::set_seed(seed);
     println!("Seed: {}", rnd::current_seed());
@@ -95,6 +95,8 @@ fn fuzz_epoch(edits: usize, strat: &dyn FuzzStrategy) {
     for _ in 0..edits {
         let orig_source: String = lexer.source().into();
         let (erased, inserted) = strat.make_edit(lexer.source());
+        println!("While editing source: '{}'", orig_source);
+            println!("erase: {:?}, insert : '{}'", erased, inserted);
         let m = lexer.modify(&tokens, erased.clone(), &inserted);
         // We need to also shift the existing tokens
         for t in &mut tokens[m.erased.end..] {
