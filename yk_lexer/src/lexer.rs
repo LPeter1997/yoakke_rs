@@ -187,7 +187,12 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
         // Construct an initial state
         let start_state = if invalid.start > 0 {
             let last_tok = &tokens[invalid.start - 1];
-            let last_idx = last_tok.range.start;
+            let last_idx = last_tok.range.end;
+            let mut last_pos = last_tok.position;
+
+            // TODO: Doesn't work if the token can contain a newline!
+            last_pos.advance_columns(last_tok.range.len());
+
             LexerState{
                 source_index: last_idx,
                 position: last_tok.position,
@@ -237,7 +242,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                 }
             }
             else {
-                // No possibility of an ewuivalent state, just insert
+                // No possibility of an equivalent state, just insert
                 inserted.push(token);
             }
         }

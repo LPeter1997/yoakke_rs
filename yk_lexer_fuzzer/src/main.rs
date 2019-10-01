@@ -94,7 +94,7 @@ fn fuzz_epoch(edits: usize, strat: &dyn FuzzStrategy) {
         let erased_cnt = m.erased.len();
         let inserted_cnt = m.inserted.len();
 
-        tokens.splice(m.erased, m.inserted);
+        tokens.splice(m.erased.clone(), m.inserted);
 
         let orig_tokens: Vec<_> = lexer.iter().collect();
         let diff = tokens.len() - inserted_cnt;
@@ -115,7 +115,23 @@ fn fuzz_epoch(edits: usize, strat: &dyn FuzzStrategy) {
             for t in &tokens {
                 print!("\"{}\", ", &lexer.source()[t.range.clone()]);
             }
-            println!("]");
+            println!("]\n");
+
+            println!("===========================================\n");
+            println!("Details:\n");
+            println!("erase range: {:?}\n", m.erased);
+            print!("Expected: [");
+            for t in &orig_tokens {
+                print!("{:?}, ", t);
+            }
+            println!("]\n");
+
+            print!("Got     : [");
+            for t in &tokens {
+                print!("{:?}, ", t);
+            }
+            println!("]\n");
+
             std::io::stdout().flush();
 
             panic!("Incremental mismatch!");
