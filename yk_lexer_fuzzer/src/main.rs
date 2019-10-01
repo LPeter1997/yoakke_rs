@@ -50,7 +50,7 @@ fn main() {
         rnd::seed_from_system_time()
     }
     else {
-        1569945632
+        1569946851
     };
     rnd::set_seed(seed);
     println!("Seed: {}", rnd::current_seed());
@@ -111,9 +111,9 @@ fn fuzz_epoch(edits: usize, strat: &dyn FuzzStrategy) {
         println!("tokens: {}, erased: {}, inserted: {} (saved: {})", tokens.len(), erased_cnt, inserted_cnt, diff);
 
         if tokens != orig_tokens {
-            println!("While editing source '{}'", orig_source);
-            println!("erase: {:?}, insert: '{}'", erased, inserted);
-            println!("That became          '{}'\n", lexer.source());
+            println!("While editing source: '{}'", orig_source);
+            println!("erase: {:?}, insert : '{}'", erased, inserted);
+            println!("That became         : '{}'\n", lexer.source());
 
             print!("Expected: [");
             for t in &orig_tokens {

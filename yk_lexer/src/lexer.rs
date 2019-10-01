@@ -123,7 +123,7 @@ impl <T> StandardLexer<T> where T : PartialEq {
     }
 
     fn invalidated_range(tokens: &[Token<T>], erased: &Range<usize>) -> Range<usize> {
-        let mut lower = match tokens.binary_search_by_key(&erased.start, |t| t.range.end + t.lookahead) {
+        let mut lower = match tokens.binary_search_by_key(&erased.start, |t| t.range.start) {
             Ok(idx) | Err(idx) => idx,
         };
         let mut upper = match tokens[lower..].binary_search_by_key(&erased.end, |t| t.range.end) {
@@ -204,7 +204,20 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
         };
 
         // The index where we can count on equivalent state
-        let last_insertion = erased.start + inserted.len();
+        let mut last_insertion = erased.start + inserted.len();
+        if offset > 0 {
+            last_insertion += usize::try_from(offset).unwrap();
+        }
+        else {
+            let noff = usize::try_from(-offset).unwrap();
+            if noff <= last_insertion {
+                last_insertion -= noff;
+            }
+            else {
+                last_insertion = 0;
+            }
+        }
+        let last_insertion = last_insertion;
 
         let mut inserted = Vec::new();
 
