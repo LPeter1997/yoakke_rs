@@ -140,16 +140,26 @@ impl <T> StandardLexer<T> where T : PartialEq {
         lower..upper
     }
 
-    fn to_isize_range(r: &Range<usize>) -> Range<isize> {
-        isize::try_from(r.start).unwrap()..isize::try_from(r.end).unwrap()
+    fn offset_urange(r: &Range<usize>, i: isize) -> Range<usize> {
+        if i > 0 {
+            let ui = usize::try_from(i).unwrap();
+            (r.start + ui)..(r.end + ui)
+        }
+        else {
+            let ui = usize::try_from(-i).unwrap();
+            (r.start - ui)..(r.end - ui)
+        }
     }
 
-    fn equivalent_tokens(t1: &Token<T>, t2: &Token<T>, offs2: isize) -> bool {
-        let r1 = Self::to_isize_range(&t1.range);
-        let r2 = Self::to_isize_range(&t2.range);
-        let r2 = (r2.start + offs2)..(r2.end + offs2);
+    fn equivalent_tokens(src: &str, t1: &Token<T>, t2: &Token<T>, offs2: isize) -> bool {
+        let r1 = &t1.range;
+        let r2 = &t2.range;
+        let r2 = Self::offset_urange(r2, offs2);
 
-        r1 == r2 && t1.lookahead == t2.lookahead && t1.kind == t2.kind
+           r1 == &r2
+        && t1.lookahead == t2.lookahead
+        && t1.kind == t2.kind
+        && src[r1.clone()] == src[r2]
     }
 }
 
@@ -240,7 +250,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                             // We need to check for equivalence
                             // If equivalent, we are done
                             // If not equivalent, we need to erase that token
-                            if Self::equivalent_tokens(existing, &token, offset) {
+                            if Self::equivalent_tokens(self.source(), existing, &token, offset) {
                                 // Equivalent, we are done
                                 break 'outer;
                             }
