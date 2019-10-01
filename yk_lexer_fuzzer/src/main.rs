@@ -19,7 +19,7 @@ enum TokenKind {
     #[end]
     End,
 
-    #[regex(r"[ \t\r\n]")]
+    #[regex(r"[ \n]")]
     #[ignore]
     Ws,
 
@@ -93,7 +93,8 @@ fn fuzz_epoch(edits: usize, strat: &dyn FuzzStrategy) {
         tokens.splice(m.erased, m.inserted);
 
         let orig_tokens: Vec<_> = lexer.iter().collect();
-        println!("tokens: {}, erased: {}, inserted: {}", tokens.len(), erased_cnt, inserted_cnt);
+        let diff = tokens.len() - inserted_cnt;
+        println!("tokens: {}, erased: {}, inserted: {} (saved: {})", tokens.len(), erased_cnt, inserted_cnt, diff);
 
         if tokens != orig_tokens {
             println!("While editing source '{}'\n", orig_source);
