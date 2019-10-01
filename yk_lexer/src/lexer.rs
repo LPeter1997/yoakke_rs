@@ -126,7 +126,7 @@ impl <T> StandardLexer<T> where T : PartialEq {
         let mut lower = match tokens.binary_search_by_key(&erased.start, |t| t.range.start) {
             Ok(idx) | Err(idx) => idx,
         };
-        let mut upper = match tokens[lower..].binary_search_by_key(&erased.end, |t| t.range.end) {
+        let mut upper = match tokens[lower..].binary_search_by_key(&erased.end, |t| t.range.start) {
             Ok(idx) | Err(idx) => idx,
         } + lower;
 
@@ -140,34 +140,32 @@ impl <T> StandardLexer<T> where T : PartialEq {
         lower..upper
     }
 
-    fn offset_urange(r: &Range<usize>, i: isize) -> Option<Range<usize>> {
+    fn equivalent_tokens(src: &str, t1: &Token<T>, t2: &Token<T>, offs1: isize) -> bool {
+        let r1 = &t1.range;
+        let r1 = if offs1 > 0 {
+            let uo = usize::try_from(offs1).unwrap();
+            (r1.start + uo)..(r1.end + uo)
+        }
+        else {
+            let uo = usize::try_from(-offs1).unwrap();
+            (r1.start - uo)..(r1.end - uo)
+        };
+        let r2 = &t2.range;
+
+           r1.len() == r2.len()
+        && t1.lookahead == t2.lookahead
+        && t1.kind == t2.kind
+        && src[r1] == src[r2.clone()]
+    }
+
+    fn offset_number(u: usize, i: isize) -> usize {
         if i > 0 {
             let ui = usize::try_from(i).unwrap();
-            Some((r.start + ui)..(r.end + ui))
+            u + ui
         }
         else {
             let ui = usize::try_from(-i).unwrap();
-            if ui > r.start {
-                None
-            }
-            else {
-                Some((r.start - ui)..(r.end - ui))
-            }
-        }
-    }
-
-    fn equivalent_tokens(src: &str, t1: &Token<T>, t2: &Token<T>, offs2: isize) -> bool {
-        let r1 = &t1.range;
-        let r2 = &t2.range;
-
-        if let Some(r2) = Self::offset_urange(r2, offs2) {
-               r1 == &r2
-            && t1.lookahead == t2.lookahead
-            && t1.kind == t2.kind
-            && src[r1.clone()] == src[r2]
-        }
-        else {
-            false
+            u - ui
         }
     }
 }
@@ -179,6 +177,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
         Iter::with_source(&self.source)
     }
 
+    // TODO: We are ignoring position!
     // TODO: The actual lexing sould happen when the returned Modification is dropped
     // Similar to Drain iterator
     fn modify(&mut self, tokens: &[Token<Self::TokenTag>], erased: Range<usize>, inserted: &str)
@@ -223,20 +222,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
         };
 
         // The index where we can count on equivalent state
-        let mut last_insertion = erased.start + inserted.len();
-        if offset > 0 {
-            last_insertion += usize::try_from(offset).unwrap();
-        }
-        else {
-            let noff = usize::try_from(-offset).unwrap();
-            if noff <= last_insertion {
-                last_insertion -= noff;
-            }
-            else {
-                last_insertion = 0;
-            }
-        }
-        let last_insertion = last_insertion;
+        let last_insertion = erased.start + inserted.len() + erased.len();
 
         let mut inserted = Vec::new();
 
@@ -249,7 +235,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                     if invalid.end < tokens.len() {
                         // Compare tokens
                         let existing = &tokens[invalid.end];
-                        if token.range.end + token.lookahead < existing.range.start {
+                        if token.range.end <= Self::offset_number(existing.range.start, offset) {
                             // We just insert, the new token is completely before the existing one
                             inserted.push(token);
                             break 'inner;
@@ -282,7 +268,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                     if invalid.end < tokens.len() {
                         // Compare tokens
                         let existing = &tokens[invalid.end];
-                        if token.range.end + token.lookahead < existing.range.start {
+                        if token.range.end <= Self::offset_number(existing.range.start, offset) {
                             // We just insert, the new token is completely before the existing one
                             inserted.push(token);
                             break 'inner;
