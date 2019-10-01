@@ -42,7 +42,7 @@ enum TokenKind {
     KwElse,
 }
 
-const charset: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ()0123456789 \n\r\t";
+const charset: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ()0123456789 \n";
 
 fn main() {
     let fs = create_fuzz_strategy();

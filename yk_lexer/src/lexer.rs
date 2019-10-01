@@ -195,7 +195,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
 
             LexerState{
                 source_index: last_idx,
-                position: last_tok.position,
+                position: last_pos,
                 last_char: self.source[..last_idx].chars().rev().next(),
             }
         }
@@ -207,7 +207,6 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
         let last_insertion = erased.start + inserted.len();
 
         let mut inserted = Vec::new();
-        let mut hit_end = false;
 
         // Now we go until we hit an equivalent state
         let mut it = Iter::<T>::with_source_and_state(&self.source, start_state);
@@ -218,7 +217,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                     if invalid.end < tokens.len() {
                         // Compare tokens
                         let existing = &tokens[invalid.end];
-                        if token.range.end <= existing.range.start {
+                        if token.range.end + token.lookahead < existing.range.start {
                             // We just insert, the new token is completely before the existing one
                             inserted.push(token);
                             break 'inner;
@@ -241,7 +240,6 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                     else {
                         // We are inserting at the end
                         inserted.push(token);
-                        hit_end = true;
                         break 'inner;
                     }
                 }
@@ -252,7 +250,7 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                     if invalid.end < tokens.len() {
                         // Compare tokens
                         let existing = &tokens[invalid.end];
-                        if token.range.end <= existing.range.start {
+                        if token.range.end + token.lookahead < existing.range.start {
                             // We just insert, the new token is completely before the existing one
                             inserted.push(token);
                             break 'inner;
@@ -266,14 +264,13 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
                     else {
                         // We are inserting at the end
                         inserted.push(token);
-                        hit_end = true;
                         break 'inner;
                     }
                 }
             }
         }
 
-        if hit_end {
+        if it.already_ended {
             invalid.end = tokens.len();
         }
 
