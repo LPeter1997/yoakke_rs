@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 yk_lexer = { path = "../yk_lexer" }
-rand = "0.7.2"
+rand = "0.7"
+rand_pcg = "0.2.0"

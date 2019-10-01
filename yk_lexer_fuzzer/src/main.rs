@@ -1,6 +1,7 @@
 
 extern crate yk_lexer;
 extern crate rand;
+extern crate rand_pcg;
 
 mod rnd;
 mod str_gen;
@@ -45,6 +46,15 @@ enum TokenKind {
 const charset: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ()0123456789 \n";
 
 fn main() {
+    let seed = if true {
+        rnd::seed_from_system_time()
+    }
+    else {
+        1569945632
+    };
+    rnd::set_seed(seed);
+    println!("Seed: {}", rnd::current_seed());
+
     let fs = create_fuzz_strategy();
     fuzz(10, 100, &fs);
 }
@@ -131,6 +141,8 @@ fn fuzz_epoch(edits: usize, strat: &dyn FuzzStrategy) {
                 print!("{:?}, ", t);
             }
             println!("]\n");
+
+            println!("Seed: {}", rnd::current_seed());
 
             std::io::stdout().flush();
 
