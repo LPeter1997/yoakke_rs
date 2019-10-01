@@ -210,40 +210,63 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
 
         // Now we go until we hit an equivalent state
         let mut it = Iter::<T>::with_source_and_state(&self.source, start_state);
-        while let Some(token) = it.next() {
+        'outer: while let Some(token) = it.next() {
             if token.range.start > last_insertion {
                 // Possibly an equivalent state
-                if invalid.end < tokens.len() {
-                    // Compare tokens
-                    let existing = &tokens[invalid.end];
-                    if token.range.end <= existing.range.start {
-                        // We just insert, the new token is completely before the existing one
-                        inserted.push(token);
-                    }
-                    else {
-                        // The new token is after or intersects with the existing one
-                        // We need to check for equivalence
-                        // If equivalent, we are done
-                        // If not equivalent, we need to erase that token
-                        if Self::equivalent_tokens(existing, &token, offset) {
-                            // Equivalent, we are done
-                            break;
+                'inner: loop {
+                    if invalid.end < tokens.len() {
+                        // Compare tokens
+                        let existing = &tokens[invalid.end];
+                        if token.range.end <= existing.range.start {
+                            // We just insert, the new token is completely before the existing one
+                            inserted.push(token);
+                            break 'inner;
                         }
                         else {
-                            // Not equivalent, erase, insert
-                            invalid.end += 1;
-                            inserted.push(token);
+                            // The new token is after or intersects with the existing one
+                            // We need to check for equivalence
+                            // If equivalent, we are done
+                            // If not equivalent, we need to erase that token
+                            if Self::equivalent_tokens(existing, &token, offset) {
+                                // Equivalent, we are done
+                                break 'outer;
+                            }
+                            else {
+                                // Not equivalent, erase
+                                invalid.end += 1;
+                            }
                         }
                     }
-                }
-                else {
-                    // We are inserting at the end
-                    inserted.push(token);
+                    else {
+                        // We are inserting at the end
+                        inserted.push(token);
+                        break 'inner;
+                    }
                 }
             }
             else {
-                // No possibility of an equivalent state, just insert
-                inserted.push(token);
+                // No possibility of an equivalent state
+                'inner: loop {
+                    if invalid.end < tokens.len() {
+                        // Compare tokens
+                        let existing = &tokens[invalid.end];
+                        if token.range.end <= existing.range.start {
+                            // We just insert, the new token is completely before the existing one
+                            inserted.push(token);
+                            break 'inner;
+                        }
+                        else {
+                            // The new token is after or intersects with the existing one
+                            // We need to remove it
+                            invalid.end += 1;
+                        }
+                    }
+                    else {
+                        // We are inserting at the end
+                        inserted.push(token);
+                        break 'inner;
+                    }
+                }
             }
         }
 
