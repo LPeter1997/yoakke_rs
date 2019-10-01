@@ -101,6 +101,7 @@ impl <'a, T> Iterator for Iter<'a, T> where T : TokenType {
 pub struct Modification<T> {
     pub erased: Range<usize>,
     pub inserted: Vec<Token<T>>,
+    pub offset: isize,
 }
 
 /**
@@ -122,7 +123,7 @@ impl <T> StandardLexer<T> where T : PartialEq {
     }
 
     fn invalidated_range(tokens: &[Token<T>], erased: &Range<usize>) -> Range<usize> {
-        let mut lower = match tokens.binary_search_by_key(&erased.start, |t| t.range.start) {
+        let mut lower = match tokens.binary_search_by_key(&erased.start, |t| t.range.end + t.lookahead) {
             Ok(idx) | Err(idx) => idx,
         };
         let mut upper = match tokens[lower..].binary_search_by_key(&erased.end, |t| t.range.end) {
@@ -241,6 +242,6 @@ impl <T> Lexer for StandardLexer<T> where T : TokenType + PartialEq {
             }
         }
 
-        Modification{ erased: invalid, inserted }
+        Modification{ erased: invalid, inserted, offset }
     }
 }
