@@ -7,6 +7,7 @@ use crate::position::Position;
 use crate::lexer::{LexerState, StandardLexer};
 
 /// A generic token that's being returned by the lexer.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token<T> {
     pub range: Range<usize>,
     pub kind: T,

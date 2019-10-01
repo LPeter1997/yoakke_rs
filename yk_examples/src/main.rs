@@ -54,8 +54,8 @@ enum AST {
 
 yk_parser!{
     addition ::=
-        | atomic ('+' | '-') addition { Box::new(AST::Add(e0, e2)) }
-        //| atomic '-' addition { Box::new(AST::Sub(e0, e2)) }
+        | atomic '+' addition { Box::new(AST::Add(e0, e2)) }
+        | atomic '-' addition { Box::new(AST::Sub(e0, e2)) }
         | atomic
         ;
 
