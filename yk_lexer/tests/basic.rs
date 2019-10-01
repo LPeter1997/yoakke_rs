@@ -47,3 +47,17 @@ fn lex_empty() {
         }
     ].iter().cloned(), lexer.iter());
 }
+
+#[test]
+fn lex_spaces() {
+    let mut lexer = TokenKind::lexer();
+    lexer.modify(&[], 0..0, "  \r\n  \n  \t  \t\r  ");
+    assert_iter_eq([
+        Token{
+            range: 16..16,
+            kind: TokenKind::End,
+            position: Position{ line: 3, column: 1 },
+            lookahead: 0,
+        }
+    ].iter().cloned(), lexer.iter());
+}

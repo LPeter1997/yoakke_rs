@@ -65,8 +65,9 @@ impl <'a, T> Iterator for Iter<'a, T> where T : TokenType {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             match T::next_lexeme_internal(self.source, &self.state) {
-                (state, Some(kind), lookahead) => {
+                (state, Some(kind), mut lookahead) => {
                     let range = self.state.source_index..state.source_index;
+                    lookahead -= range.end;
                     let position = self.state.position;
                     self.state = state;
                     // If it's the end and we have already returned that, stop iteration
