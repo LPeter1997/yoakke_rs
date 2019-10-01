@@ -1,0 +1,11 @@
+[package]
+name = "yk_lexer_fuzzer"
+version = "0.1.0"
+authors = ["Peter Lenkefi <lenkefi.peti@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+yk_lexer = { path = "../yk_lexer" }
+rand = "0.7.2"
