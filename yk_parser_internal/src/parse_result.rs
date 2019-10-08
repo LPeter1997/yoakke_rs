@@ -78,7 +78,7 @@ impl <T> ParseResult<T> {
         }
     }
 
-    pub fn unify_sequence(a: ParseOk<T>, b: Self) -> ParseResult<(T, T)> {
+    pub fn unify_sequence<U>(a: ParseOk<T>, b: ParseResult<U>) -> ParseResult<(T, U)> {
         match b {
             ParseResult::Ok(b) => {
                 let furthest_error = if a.furthest_error.is_some() && b.furthest_error.is_some() {
@@ -101,7 +101,12 @@ impl <T> ParseResult<T> {
             },
 
             ParseResult::Err(b) => {
-                unimplemented!();
+                if a.furthest_error.is_some() {
+                    ParseResult::Err(Self::unify_errors(a.furthest_error.unwrap(), b))
+                }
+                else {
+                    ParseResult::Err(b)
+                }
             }
         }
     }
