@@ -148,13 +148,12 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
 fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
     lit: &Lit) -> (TokenStream, usize) {
 
-    let code = quote!{
+    let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
-            let idx = idx + 1;
             if v == #lit {
                 ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
-                    furthest_look: idx, furthest_it: src2, furthest_error: None, value: (v) })
+                    furthest_look: idx + 1, furthest_it: src2, furthest_error: None, value: (v) })
             }
             else {
                 ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
@@ -165,7 +164,7 @@ fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
             ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
                 idx, String::from("end of input"), String::from("<TODO rule>"), String::from("<TODO expected>")))
         }
-    };
+    }};
 
     (code, counter + 1)
 }
@@ -186,13 +185,12 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
     }
 
     // Some identifier
-    let code = quote!{
+    let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
-            let idx = idx + 1;
             if v == #lit {
                 ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
-                    furthest_look: idx, furthest_it: src2, furthest_error: None, value: (v) })
+                    furthest_look: idx + 1, furthest_it: src2, furthest_error: None, value: (v) })
             }
             else {
                 ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
@@ -203,7 +201,7 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
             ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
                 idx, String::from("end of input"), String::from("<TODO rule>"), String::from("<TODO expected>")))
         }
-    };
+    }};
     return (code, counter + 1);
 }
 
