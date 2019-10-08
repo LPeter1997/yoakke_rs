@@ -6,6 +6,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, format_ident};
 use syn::{Ident, Block, Lit, Path};
 use crate::bnf;
+use crate::parse_result::*;
 
 pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let mut parser_fns = Vec::new();

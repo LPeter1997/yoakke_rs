@@ -4,13 +4,14 @@
 
 use std::collections::{HashMap, HashSet};
 
-pub enum ParseResult<T> {
-    Ok(ParseOk<T>),
+pub enum ParseResult<T, I> {
+    Ok(ParseOk<T, I>),
     Err(ParseErr),
 }
 
-pub struct ParseOk<T> {
+pub struct ParseOk<T, I> {
     furthest_look: usize, // = consumed
+    furthest_it: I,
     furthest_error: Option<ParseErr>,
     value: T,
 }
@@ -27,7 +28,7 @@ pub struct ParseErrElement {
     expected_elements: HashSet<String>,
 }
 
-impl <T> ParseResult<T> {
+impl <T, I> ParseResult<T, I> {
     pub fn is_ok(&self) -> bool {
         match self {
             ParseResult::Ok(_) => true,
@@ -41,36 +42,26 @@ impl <T> ParseResult<T> {
 
     pub fn unify_alternatives(a: Self, b: Self) -> Self {
         match (a, b) {
-            (ParseResult::Ok(a), ParseResult::Ok(b)) => {
+            (ParseResult::Ok(mut a), ParseResult::Ok(mut b)) => {
                 if a.furthest_look > b.furthest_look {
+                    a.furthest_error = Self::unify_errors_in_oks(a.furthest_error, b.furthest_error);
                     ParseResult::Ok(a)
                 }
                 else if b.furthest_look > a.furthest_look {
+                    b.furthest_error = Self::unify_errors_in_oks(a.furthest_error, b.furthest_error);
                     ParseResult::Ok(b)
                 }
                 else {
                     // TODO: Warn about ambiguity?
+                    a.furthest_error = Self::unify_errors_in_oks(a.furthest_error, b.furthest_error);
                     ParseResult::Ok(a)
                 }
             },
 
               (ParseResult::Ok(mut a), ParseResult::Err(b))
             | (ParseResult::Err(b), ParseResult::Ok(mut a)) => {
-                if a.furthest_look > b.furthest_look {
-                    // Drop the error completely, contains no information
-                    ParseResult::Ok(a)
-                }
-                else {
-                    // We need to store the error
-                    if let Some(err) = a.furthest_error {
-                        // We need to unify the errors
-                        a.furthest_error = Some(Self::unify_errors(err, b));
-                    }
-                    else {
-                        a.furthest_error = Some(b);
-                    }
-                    ParseResult::Ok(a)
-                }
+                a.furthest_error = Some(Self::unify_errors_in_ok_err(a.furthest_error, b));
+                ParseResult::Ok(a)
             },
 
             (ParseResult::Err(a), ParseResult::Err(b)) =>
@@ -78,36 +69,47 @@ impl <T> ParseResult<T> {
         }
     }
 
-    pub fn unify_sequence<U>(a: ParseOk<T>, b: ParseResult<U>) -> ParseResult<(T, U)> {
+    pub fn unify_sequence<U>(a: ParseOk<T, I>, b: ParseResult<U, I>) -> ParseResult<(T, U), I> {
         match b {
             ParseResult::Ok(b) => {
-                let furthest_error = if a.furthest_error.is_some() && b.furthest_error.is_some() {
-                    Some(Self::unify_errors(a.furthest_error.unwrap(), b.furthest_error.unwrap()))
-                }
-                else if a.furthest_error.is_some() {
-                    a.furthest_error
-                }
-                else if b.furthest_error.is_some() {
-                    b.furthest_error
-                }
-                else {
-                    None
-                };
                 ParseResult::Ok(ParseOk{
-                    furthest_look: a.furthest_look,
-                    furthest_error,
+                    furthest_look: b.furthest_look,
+                    furthest_it: b.furthest_it,
+                    furthest_error: Self::unify_errors_in_oks(a.furthest_error, b.furthest_error),
                     value: (a.value, b.value),
                 })
             },
 
             ParseResult::Err(b) => {
-                if a.furthest_error.is_some() {
-                    ParseResult::Err(Self::unify_errors(a.furthest_error.unwrap(), b))
-                }
-                else {
-                    ParseResult::Err(b)
-                }
+                ParseResult::Err(Self::unify_errors_in_ok_err(a.furthest_error, b))
             }
+        }
+    }
+
+    fn unify_errors_in_oks(a: Option<ParseErr>, b: Option<ParseErr>) -> Option<ParseErr> {
+        if a.is_some() && b.is_some() {
+            let aerr = a.unwrap();
+            let berr = b.unwrap();
+            Some(Self::unify_errors(aerr, berr))
+        }
+        else if a.is_some() {
+            a
+        }
+        else if b.is_some() {
+            b
+        }
+        else {
+            None
+        }
+    }
+
+    fn unify_errors_in_ok_err(a: Option<ParseErr>, b: ParseErr) -> ParseErr {
+        if a.is_some() {
+            let aerr = a.unwrap();
+            Self::unify_errors(aerr, b)
+        }
+        else {
+            b
         }
     }
 
