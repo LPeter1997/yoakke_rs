@@ -66,7 +66,7 @@ yk_parser!{
 }
 
 fn main() {
-    let src = "1+1-0-1+1+0+0+0";
+    let src = "+1-0-1+1+0+0+0";
 
     let r = parse_addition(src.chars(), 0);
     if r.is_ok() {
@@ -74,7 +74,22 @@ fn main() {
         println!("Ok: {:?}", val);
     }
     else {
-        println!("Err!");
+        let err = r.err();
+        println!("Err:");
+        for (rule, element) in err.elements {
+            print!("  While parsing {} expected: ", rule);
+
+            let mut fst = true;
+            for tok in element.expected_elements {
+                if !fst {
+                    print!(" or ");
+                }
+                fst = false;
+                print!("{}", tok);
+            }
+            println!();
+        }
+        println!("But got '{}'", err.found_element);
     }
 
     /*

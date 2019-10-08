@@ -3,7 +3,7 @@
  */
 
 use proc_macro2::TokenStream;
-use quote::{quote, format_ident};
+use quote::{quote, format_ident, ToTokens};
 use syn::{Ident, Block, Lit, Path};
 use crate::bnf;
 use crate::parse_result::*;
@@ -36,8 +36,11 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             <I as ::std::iter::Iterator>::Item :
                 // TODO: Collect what we compare with!
                   ::std::cmp::PartialEq<char>
+
+                + ::std::fmt::Display
                 {
 
+            let curr_rule = #name;
             #code
         }
     }
@@ -148,6 +151,8 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
 fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
     lit: &Lit) -> (TokenStream, usize) {
 
+    let lit_str = format!("{}", lit.into_token_stream());
+
     let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
@@ -156,13 +161,14 @@ fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
                     furthest_look: idx + 1, furthest_it: src2, furthest_error: None, value: (v) })
             }
             else {
+                let got = format!("{}", v);
                 ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
-                    idx, String::from("<TODO got>"), String::from("<TODO rule>"), String::from("<TODO expected>")))
+                    idx, got, ::std::string::String::from(curr_rule), ::std::string::String::from(#lit_str)))
             }
         }
         else {
             ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
-                idx, String::from("end of input"), String::from("<TODO rule>"), String::from("<TODO expected>")))
+                idx, ::std::string::String::from("end of input"), ::std::string::String::from(curr_rule), ::std::string::String::from(#lit_str)))
         }
     }};
 
@@ -184,6 +190,8 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
         }
     }
 
+    let lit_str = format!("{}", lit.into_token_stream());
+
     // Some identifier
     let code = quote!{{
         let mut src2 = src.clone();
@@ -193,13 +201,14 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
                     furthest_look: idx + 1, furthest_it: src2, furthest_error: None, value: (v) })
             }
             else {
+                let got = format!("{}", v);
                 ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
-                    idx, String::from("<TODO got>"), String::from("<TODO rule>"), String::from("<TODO expected>")))
+                    idx, got, ::std::string::String::from(curr_rule), ::std::string::String::from(#lit_str)))
             }
         }
         else {
             ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
-                idx, String::from("end of input"), String::from("<TODO rule>"), String::from("<TODO expected>")))
+                idx, ::std::string::String::from("end of input"), ::std::string::String::from(curr_rule), ::std::string::String::from(#lit_str)))
         }
     }};
     return (code, counter + 1);
