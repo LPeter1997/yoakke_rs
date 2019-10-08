@@ -46,7 +46,7 @@ enum TokenKind {
 const charset: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ()0123456789 \n";
 
 fn main() {
-    let seed = if false {
+    let seed = if true {
         rnd::seed_from_system_time()
     }
     else {
