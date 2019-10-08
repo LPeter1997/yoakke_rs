@@ -67,8 +67,16 @@ yk_parser!{
 
 fn main() {
     let src = "1+1-0-1+1+0+0+0";
-    let r = parse_addition(src.chars());
-    println!("{:?}", r);
+
+    let r = parse_addition(src.chars(), 0);
+    if r.is_ok() {
+        let val = r.ok().value;
+        println!("Ok: {:?}", val);
+    }
+    else {
+        println!("Err!");
+    }
+
     /*
     // Creating a lexer
     let mut lexer = MyTokenType::lexer();

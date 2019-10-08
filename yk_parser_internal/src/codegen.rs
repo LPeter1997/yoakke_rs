@@ -27,13 +27,14 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let (code, counter) = generate_code_node(rs, 0, node);
     let fname = quote::format_ident!("parse_{}", name);
 
-    let ret_ty: Vec<_> = (0..counter).map(|_| quote!{ /* impl Promoter */ Box<AST> }).collect();
+    // TODO: Proper return type
+    let ret_ty: Vec<_> = (0..counter).map(|_| quote!{ Box<AST> }).collect();
 
     quote!{
-        fn #fname<I>(src: I) -> ::std::result::Result<(I, (#(#ret_ty),*)), ()>
+        fn #fname<I>(src: I, idx: usize) -> ::yk_parser::ParseResult<I, (#(#ret_ty),*)>
             where I : ::std::iter::Iterator + ::std::clone::Clone,
             <I as ::std::iter::Iterator>::Item :
-                // TODO: Collect what!
+                // TODO: Collect what we compare with!
                   ::std::cmp::PartialEq<char>
                 {
 
@@ -72,15 +73,18 @@ fn generate_code_transformation(rs: &bnf::RuleSet, counter: usize,
     let params = param_list(0..counter);
     let closure = quote!{ |#params| #action };
 
-    let code = quote!{
-        if let ::std::result::Result::Ok((src, (#params))) = { #code } {
-            let val = (#closure)(#params);
-            ::std::result::Result::Ok((src, (val)))
+    let code = quote!{{
+        let res = { #code };
+        if let ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+            furthest_look, furthest_it, furthest_error, value: (#params) }) = res {
+            let value = (#closure)(#params);
+            ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+                furthest_look, furthest_it, furthest_error, value })
         }
         else {
-            ::std::result::Result::Err(())
+            ::yk_parser::ParseResult::Err(res.err())
         }
-    };
+    }};
 
     (code, 1)
 }
@@ -95,17 +99,11 @@ fn generate_code_alternative(rs: &bnf::RuleSet, counter: usize,
 
     let params = param_list(counter..counter1);
 
-    let code = quote!{
-        if let ::std::result::Result::Ok((src, (#params))) = { #code1 } {
-            ::std::result::Result::Ok((src, (#params)))
-        }
-        else if let ::std::result::Result::Ok((src, (#params))) = { #code2 } {
-            ::std::result::Result::Ok((src, (#params)))
-        }
-        else {
-            ::std::result::Result::Err(())
-        }
-    };
+    let code = quote!{{
+        let res1 = { #code1 };
+        let res2 = { #code2 };
+        ::yk_parser::ParseResult::unify_alternatives(res1, res2)
+    }};
 
     (code, counter1)
 }
@@ -119,19 +117,30 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
     let params1 = param_list(counter..counter1);
     let params2 = param_list(counter1..counter2);
 
-    let code = quote!{
-        if let ::std::result::Result::Ok((src, (#params1))) = { #code1 } {
-            if let ::std::result::Result::Ok((src, (#params2))) = { #code2 } {
-                ::std::result::Result::Ok((src, (#params1, #params2)))
+    let code = quote!{{
+        let res1 = { #code1 };
+        if let ::yk_parser::ParseResult::Ok(ok) = res1 {
+            let src = ok.furthest_it.clone();
+            let idx = ok.furthest_look;
+            let res2 = { #code2 };
+
+            let res_tmp = ::yk_parser::ParseResult::unify_sequence(ok, res2);
+
+            if let ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+                furthest_look, furthest_it, furthest_error, value: ((#params1), (#params2)) }) = res_tmp {
+
+                // Flatten
+                ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+                    furthest_look, furthest_it, furthest_error, value: (#params1, #params2) })
             }
             else {
-                ::std::result::Result::Err(())
+                ::yk_parser::ParseResult::Err(res_tmp.err())
             }
         }
         else {
-            ::std::result::Result::Err(())
+            ::yk_parser::ParseResult::Err(res1.err())
         }
-    };
+    }};
 
     (code, counter2)
 }
@@ -142,15 +151,19 @@ fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
     let code = quote!{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
+            let idx = idx + 1;
             if v == #lit {
-                ::std::result::Result::Ok((src2, (v)))
+                ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+                    furthest_look: idx, furthest_it: src2, furthest_error: None, value: (v) })
             }
             else {
-                ::std::result::Result::Err(())
+                ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
+                    idx, String::from("<TODO got>"), String::from("<TODO rule>"), String::from("<TODO expected>")))
             }
         }
         else {
-            ::std::result::Result::Err(())
+            ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
+                idx, String::from("end of input"), String::from("<TODO rule>"), String::from("<TODO expected>")))
         }
     };
 
@@ -166,7 +179,7 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
         if rs.rules.contains_key(&id) {
             let fname = quote::format_ident!("parse_{}", id);
             let code = quote!{
-                #fname(src.clone())
+                #fname(src.clone(), idx)
             };
             return (code, counter + 1);
         }
@@ -176,15 +189,19 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
     let code = quote!{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
+            let idx = idx + 1;
             if v == #lit {
-                ::std::result::Result::Ok((src2, (v)))
+                ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+                    furthest_look: idx, furthest_it: src2, furthest_error: None, value: (v) })
             }
             else {
-                ::std::result::Result::Err(())
+                ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
+                    idx, String::from("<TODO got>"), String::from("<TODO rule>"), String::from("<TODO expected>")))
             }
         }
         else {
-            ::std::result::Result::Err(())
+            ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
+                idx, String::from("end of input"), String::from("<TODO rule>"), String::from("<TODO expected>")))
         }
     };
     return (code, counter + 1);

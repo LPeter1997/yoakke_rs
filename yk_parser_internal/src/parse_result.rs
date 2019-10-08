@@ -4,31 +4,31 @@
 
 use std::collections::{HashMap, HashSet};
 
-pub enum ParseResult<T, I> {
-    Ok(ParseOk<T, I>),
+pub enum ParseResult<I, T> {
+    Ok(ParseOk<I, T>),
     Err(ParseErr),
 }
 
-pub struct ParseOk<T, I> {
-    furthest_look: usize, // = consumed
-    furthest_it: I,
-    furthest_error: Option<ParseErr>,
-    value: T,
+pub struct ParseOk<I, T> {
+    pub furthest_look: usize, // = consumed
+    pub furthest_it: I,
+    pub furthest_error: Option<ParseErr>,
+    pub value: T,
 }
 
 pub struct ParseErr {
-    furthest_look: usize,
-    found_element: String,
+    pub furthest_look: usize,
+    pub found_element: String,
     // rule name -> element
-    elements: HashMap<String, ParseErrElement>,
+    pub elements: HashMap<String, ParseErrElement>,
 }
 
 pub struct ParseErrElement {
-    rule: String,
-    expected_elements: HashSet<String>,
+    pub rule: String,
+    pub expected_elements: HashSet<String>,
 }
 
-impl <T, I> ParseResult<T, I> {
+impl <I, T> ParseResult<I, T> {
     pub fn is_ok(&self) -> bool {
         match self {
             ParseResult::Ok(_) => true,
@@ -38,6 +38,20 @@ impl <T, I> ParseResult<T, I> {
 
     pub fn is_err(&self) -> bool {
         !self.is_ok()
+    }
+
+    pub fn err(self) -> ParseErr {
+        match self {
+            ParseResult::Err(err) => err,
+            _ => panic!("Wrong alternative!"),
+        }
+    }
+
+    pub fn ok(self) -> ParseOk<I, T> {
+        match self {
+            ParseResult::Ok(ok) => ok,
+            _ => panic!("Wrong alternative!"),
+        }
     }
 
     pub fn unify_alternatives(a: Self, b: Self) -> Self {
@@ -69,7 +83,7 @@ impl <T, I> ParseResult<T, I> {
         }
     }
 
-    pub fn unify_sequence<U>(a: ParseOk<T, I>, b: ParseResult<U, I>) -> ParseResult<(T, U), I> {
+    pub fn unify_sequence<U>(a: ParseOk<I, T>, b: ParseResult<I, U>) -> ParseResult<I, (T, U)> {
         match b {
             ParseResult::Ok(b) => {
                 ParseResult::Ok(ParseOk{
@@ -122,7 +136,7 @@ impl <T, I> ParseResult<T, I> {
         }
         else {
             // We unify the errors
-            assert!(a.found_element == b.found_element);
+            assert_eq!(a.found_element, b.found_element);
 
             let mut elements = a.elements;
             for (k, v) in b.elements {
@@ -141,5 +155,21 @@ impl <T, I> ParseResult<T, I> {
                 elements
             }
         }
+    }
+}
+
+impl ParseErr {
+    pub fn single(furthest_look: usize, found_element: String, rule: String, expected_element: String) -> Self {
+        let mut elements = HashMap::new();
+        elements.insert(rule.clone(), ParseErrElement::single(rule, expected_element));
+        Self{ furthest_look, found_element, elements }
+    }
+}
+
+impl ParseErrElement {
+    pub fn single(rule: String, element: String) -> Self {
+        let mut expected_elements = HashSet::new();
+        expected_elements.insert(element);
+        Self{ rule, expected_elements }
     }
 }
