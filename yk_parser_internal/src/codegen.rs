@@ -8,30 +8,73 @@ use syn::{Ident, Block, Lit, Path};
 use crate::bnf;
 use crate::parse_result::*;
 
+struct GeneratedRule {
+    parser_fn: TokenStream,
+    memo_id: Ident,
+    memo_ty: TokenStream,
+}
+
 pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let mut parser_fns = Vec::new();
+
+    let mut memo_members = Vec::new();
+    let mut memo_ctor = Vec::new();
+
     for (name, node) in &rules.rules {
-        parser_fns.push(generate_code_rule(rules, name, node));
+        let GeneratedRule{ parser_fn, memo_id, memo_ty } = generate_code_rule(rules, name, node);
+
+        parser_fns.push(parser_fn);
+
+        memo_members.push(quote!{ #memo_id: ::std::collections::HashMap<usize, #memo_ty> });
+        memo_ctor.push(quote!{ #memo_id: ::std::collections::HashMap::new() });
     }
+
     quote!{
-        trait Promoter {}
-        impl <T> Promoter for T {}
+        struct MemoContext {
+            #(#memo_members),*
+        }
+
+        impl MemoContext {
+            fn new() -> Self {
+                Self{
+                    #(#memo_ctor),*
+                }
+            }
+        }
 
         #(#parser_fns)*
     }
 }
 
 fn generate_code_rule(rs: &bnf::RuleSet,
-    name: &str, node: &bnf::Node) -> TokenStream {
+    name: &str, node: &bnf::Node) -> GeneratedRule {
 
     let (code, counter) = generate_code_node(rs, 0, node);
+
     let fname = quote::format_ident!("parse_{}", name);
+    let memo_id = quote::format_ident!("memo_{}", name);
 
     // TODO: Proper return type
-    let ret_ty: Vec<_> = (0..counter).map(|_| quote!{ Box<AST> }).collect();
+    let ret_tys: Vec<_> = (0..counter).map(|_| quote!{ Box<AST> }).collect();
+    let ret_ty = quote!{ (#(#ret_tys),*) };
 
-    quote!{
-        fn #fname<I>(src: I, idx: usize) -> ::yk_parser::ParseResult<I, (#(#ret_ty),*)>
+    let rec = rs.left_recursion(name);
+    let memo_ty = match rec {
+        bnf::LeftRecursion::None => {
+            quote!{ ::std::option::Option<#ret_ty> }
+        },
+
+        bnf::LeftRecursion::Direct => {
+            quote!{ ::std::option::OptionD<#ret_ty> }
+        },
+
+        bnf::LeftRecursion::Indirect => {
+            quote!{ ::std::option::OptionI<#ret_ty> }
+        }
+    };
+
+    let parser_fn = quote!{
+        fn #fname<I>(src: I, idx: usize) -> ::yk_parser::ParseResult<I, #ret_ty>
             where I : ::std::iter::Iterator + ::std::clone::Clone,
             <I as ::std::iter::Iterator>::Item :
                 // TODO: Collect what we compare with!
@@ -43,7 +86,9 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             let curr_rule = #name;
             #code
         }
-    }
+    };
+
+    GeneratedRule{ parser_fn, memo_id, memo_ty }
 }
 
 fn generate_code_node(rs: &bnf::RuleSet, counter: usize,

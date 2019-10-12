@@ -107,9 +107,9 @@ impl RuleSet {
         }
     }
 
-    pub fn left_recursion(rules: &RuleSet, rule: &str) -> LeftRecursion {
-        match rules.rules.get(rule) {
-            Some(n) => Self::left_recursion_impl(n, rule, rules, true, &mut HashSet::new()),
+    pub fn left_recursion(&self, rule: &str) -> LeftRecursion {
+        match self.rules.get(rule) {
+            Some(n) => Self::left_recursion_impl(n, rule, self, true, &mut HashSet::new()),
             None => LeftRecursion::None,
         }
     }
