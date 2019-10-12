@@ -45,30 +45,23 @@ enum TokTy {
     RP,
 }
 
-#[derive(Debug)]
-enum AST {
-    Add(Box<AST>, Box<AST>),
-    Sub(Box<AST>, Box<AST>),
-    Atom(i32),
-}
-
 yk_parser!{
     addition ::=
-        | atomic '+' addition { Box::new(AST::Add(e0, e2)) }
-        | atomic '-' addition { Box::new(AST::Sub(e0, e2)) }
+        | atomic '+' addition { println!("{:?} + {:?}", e0, e2); e0 + e2 }
+        | atomic '-' addition { println!("{:?} - {:?}", e0, e2); e0 + e2 }
         | atomic
         ;
 
     atomic ::=
-        | '0' { Box::new(AST::Atom(0)) }
-        | '1' { Box::new(AST::Atom(1)) }
+        | '0' { println!("{:?}", 0); 0 }
+        | '1' { println!("{:?}", 1); 1 }
         ;
 }
 
 fn main() {
-    let src = "+1-0-1+1+0+0+0";
+    let src = "1+1-0-1+1+0+0+0";
 
-    let r = parse_addition(src.chars(), 0);
+    let r = parse_addition(&mut MemoContext::new(), src.chars(), 0);
     if r.is_ok() {
         let val = r.ok().value;
         println!("Ok: {:?}", val);

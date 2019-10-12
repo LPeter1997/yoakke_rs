@@ -30,11 +30,11 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     }
 
     quote!{
-        struct MemoContext {
+        struct MemoContext<I> {
             #(#memo_members),*
         }
 
-        impl MemoContext {
+        impl <I> MemoContext<I> {
             fn new() -> Self {
                 Self{
                     #(#memo_ctor),*
@@ -55,26 +55,49 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let memo_id = quote::format_ident!("memo_{}", name);
 
     // TODO: Proper return type
-    let ret_tys: Vec<_> = (0..counter).map(|_| quote!{ Box<AST> }).collect();
+    let ret_tys: Vec<_> = (0..counter).map(|_| quote!{ i32 }).collect();
     let ret_ty = quote!{ (#(#ret_tys),*) };
 
     let rec = rs.left_recursion(name);
     let memo_ty = match rec {
-        bnf::LeftRecursion::None => {
-            quote!{ ::std::option::Option<#ret_ty> }
-        },
+        bnf::LeftRecursion::None => {quote!{
+            ::yk_parser::ParseResult<I, #ret_ty>
+        }},
 
         bnf::LeftRecursion::Direct => {
-            quote!{ ::std::option::OptionD<#ret_ty> }
+            unimplemented!();
         },
 
         bnf::LeftRecursion::Indirect => {
-            quote!{ ::std::option::OptionI<#ret_ty> }
+            unimplemented!();
         }
     };
 
+    let memo_code = match rec {
+        bnf::LeftRecursion::None => {quote!{
+            // TODO: Oof... We are cloning the result!
+            if let Some(res) = memo.#memo_id.get(&idx) {
+                res.clone()
+            }
+            else {
+                let res = { #code };
+                memo.#memo_id.insert(idx, res);
+                memo.#memo_id.get(&idx).unwrap().clone()
+            }
+        }},
+
+        bnf::LeftRecursion::Direct => {unimplemented!(); quote!{
+
+        }},
+
+        bnf::LeftRecursion::Indirect => {unimplemented!(); quote!{
+
+        }}
+    };
+
     let parser_fn = quote!{
-        fn #fname<I>(src: I, idx: usize) -> ::yk_parser::ParseResult<I, #ret_ty>
+        fn #fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize) ->
+            ::yk_parser::ParseResult<I, #ret_ty>
             where I : ::std::iter::Iterator + ::std::clone::Clone,
             <I as ::std::iter::Iterator>::Item :
                 // TODO: Collect what we compare with!
@@ -84,7 +107,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 {
 
             let curr_rule = #name;
-            #code
+            #memo_code
         }
     };
 
@@ -229,7 +252,7 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
         if rs.rules.contains_key(&id) {
             let fname = quote::format_ident!("parse_{}", id);
             let code = quote!{
-                #fname(src.clone(), idx)
+                #fname(memo, src.clone(), idx)
             };
             return (code, counter + 1);
         }

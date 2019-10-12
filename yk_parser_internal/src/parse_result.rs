@@ -4,11 +4,13 @@
 
 use std::collections::{HashMap, HashSet};
 
+#[derive(Clone)]
 pub enum ParseResult<I, T> {
     Ok(ParseOk<I, T>),
     Err(ParseErr),
 }
 
+#[derive(Clone)]
 pub struct ParseOk<I, T> {
     pub furthest_look: usize, // = consumed
     pub furthest_it: I,
@@ -16,6 +18,7 @@ pub struct ParseOk<I, T> {
     pub value: T,
 }
 
+#[derive(Clone)]
 pub struct ParseErr {
     pub furthest_look: usize,
     pub found_element: String,
@@ -23,6 +26,7 @@ pub struct ParseErr {
     pub elements: HashMap<String, ParseErrElement>,
 }
 
+#[derive(Clone)]
 pub struct ParseErrElement {
     pub rule: String,
     pub expected_elements: HashSet<String>,
