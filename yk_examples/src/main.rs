@@ -47,8 +47,8 @@ enum TokTy {
 
 yk_parser!{
     addition ::=
-        | atomic '+' addition { println!("{:?} + {:?}", e0, e2); e0 + e2 }
-        | atomic '-' addition { println!("{:?} - {:?}", e0, e2); e0 + e2 }
+        | addition '+' atomic { println!("{:?} + {:?}", e0, e2); e0 + e2 }
+        | addition '-' atomic { println!("{:?} - {:?}", e0, e2); e0 + e2 }
         | atomic
         ;
 

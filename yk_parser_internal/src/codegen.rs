@@ -64,9 +64,9 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             ::yk_parser::ParseResult<I, #ret_ty>
         }},
 
-        bnf::LeftRecursion::Direct => {
-            unimplemented!();
-        },
+        bnf::LeftRecursion::Direct => {quote!{
+            ::yk_parser::DirectRec<I, #ret_ty>
+        }},
 
         bnf::LeftRecursion::Indirect => {
             unimplemented!();
@@ -82,12 +82,59 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             else {
                 let res = { #code };
                 memo.#memo_id.insert(idx, res);
-                memo.#memo_id.get(&idx).unwrap().clone()
+                let inserted = memo.#memo_id.get(&idx).unwrap();
+                inserted.clone()
             }
         }},
 
-        bnf::LeftRecursion::Direct => {unimplemented!(); quote!{
+        bnf::LeftRecursion::Direct => {quote!{
+            // TODO: Oof... We are cloning the result!
+            match memo.#memo_id.get(&idx) {
+                None => {
+                    // Nothing is in the cache, write a dummy error
+                    memo.#memo_id.insert(idx,
+                        ::yk_parser::DirectRec::Base(::yk_parser::ParseResult::Err(::yk_parser::ParseErr::new()), true));
+                    // Now invoke the parser
+                    // If it's recursive, the entry must have changed
+                    let tmp_res = { #code };
+                    // Refresh the entry, check
+                    match memo.#memo_id.get(&idx).unwrap() {
+                        ::yk_parser::DirectRec::Recurse(_) => {
+                            // We are in recursion!
+                            memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(tmp_res));
+                            let old = memo.#memo_id.get_mut(&idx).unwrap();
+                            // TODO: Implement grow
+                            unimplemented!();
+                        },
 
+                        ::yk_parser::DirectRec::Base(_, _) => {
+                            // No change, write back result
+                            // Overwrite the base-type to contain the result
+                            memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Base(tmp_res, false));
+                            let inserted = memo.#memo_id.get_mut(&idx).unwrap();
+                            // TODO: Return value from inserted
+                            unimplemented!();
+                        }
+                    }
+                },
+
+                Some(::yk_parser::DirectRec::Base(res, true)) => {
+                    // Recursion signal, write it back!
+                    // TODO: Instead of cloning we could just remove it from here!
+                    memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(res.clone()));
+                    let inserted = memo.#memo_id.get_mut(&idx).unwrap();
+                    // TODO: Return value from inserted
+                    unimplemented!();
+                },
+
+                Some(::yk_parser::DirectRec::Base(res, false)) => {
+                    res.clone()
+                },
+
+                Some(::yk_parser::DirectRec::Recurse(res)) => {
+                    res.clone()
+                }
+            }
         }},
 
         bnf::LeftRecursion::Indirect => {unimplemented!(); quote!{

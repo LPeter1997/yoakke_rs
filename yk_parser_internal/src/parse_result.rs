@@ -163,6 +163,10 @@ impl <I, T> ParseResult<I, T> {
 }
 
 impl ParseErr {
+    pub fn new() -> Self {
+        Self{ furthest_look: 0, found_element: String::new(), elements: HashMap::new() }
+    }
+
     pub fn single(furthest_look: usize, found_element: String, rule: String, expected_element: String) -> Self {
         let mut elements = HashMap::new();
         elements.insert(rule.clone(), ParseErrElement::single(rule, expected_element));
