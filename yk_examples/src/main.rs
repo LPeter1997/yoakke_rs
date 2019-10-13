@@ -47,19 +47,28 @@ enum TokTy {
 
 yk_parser!{
     addition ::=
-        | addition '+' atomic { println!("{:?} + {:?}", e0, e2); e0 + e2 }
-        | addition '-' atomic { println!("{:?} - {:?}", e0, e2); e0 + e2 }
+        | addition '+' multiplication { e0 + e2 }
+        | addition '-' multiplication { e0 - e2 }
+        | multiplication
+        ;
+
+    multiplication ::=
+        | multiplication '*' atomic { e0 * e2 }
+        | multiplication '/' atomic { e0 / e2 }
         | atomic
         ;
 
     atomic ::=
-        | '0' { println!("{:?}", 0); 0 }
-        | '1' { println!("{:?}", 1); 1 }
+        | '0' { 0 }
+        | '1' { 1 }
+        | '2' { 2 }
+        | '3' { 3 }
+        | '(' addition ')' { e1 }
         ;
 }
 
 fn main() {
-    let src = "1+1-0-1+1+0+0+0";
+    let src = "1+2*3";
 
     let r = parse_addition(&mut MemoContext::new(), src.chars(), 0);
     if r.is_ok() {

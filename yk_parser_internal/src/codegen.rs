@@ -14,6 +14,9 @@ struct GeneratedRule {
     memo_ty: TokenStream,
 }
 
+// TODO: Eliminate cloning where possible
+// TODO: Cleanup
+
 pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let mut parser_fns = Vec::new();
 
@@ -52,6 +55,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let (code, counter) = generate_code_node(rs, 0, node);
 
     let fname = quote::format_ident!("parse_{}", name);
+    let grow_fname = quote::format_ident!("grow_{}", name);
     let memo_id = quote::format_ident!("memo_{}", name);
 
     // TODO: Proper return type
@@ -102,29 +106,26 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                         ::yk_parser::DirectRec::Recurse(_) => {
                             // We are in recursion!
                             memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(tmp_res));
-                            let old = memo.#memo_id.get_mut(&idx).unwrap();
-                            // TODO: Implement grow
-                            unimplemented!();
+                            let old = memo.#memo_id.get(&idx).unwrap().parse_result();
+                            #grow_fname(memo, src.clone(), idx, old.clone())
                         },
 
                         ::yk_parser::DirectRec::Base(_, _) => {
                             // No change, write back result
                             // Overwrite the base-type to contain the result
                             memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Base(tmp_res, false));
-                            let inserted = memo.#memo_id.get_mut(&idx).unwrap();
-                            // TODO: Return value from inserted
-                            unimplemented!();
+                            let inserted = memo.#memo_id.get(&idx).unwrap();
+                            inserted.parse_result().clone()
                         }
                     }
                 },
 
                 Some(::yk_parser::DirectRec::Base(res, true)) => {
-                    // Recursion signal, write it back!
+                    // Recursion signal, write back a dummy error to start!
                     // TODO: Instead of cloning we could just remove it from here!
-                    memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(res.clone()));
-                    let inserted = memo.#memo_id.get_mut(&idx).unwrap();
-                    // TODO: Return value from inserted
-                    unimplemented!();
+                    memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(::yk_parser::ParseResult::Err(::yk_parser::ParseErr::new())));
+                    let inserted = memo.#memo_id.get(&idx).unwrap();
+                    inserted.parse_result().clone()
                 },
 
                 Some(::yk_parser::DirectRec::Base(res, false)) => {
@@ -142,16 +143,73 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         }}
     };
 
+    let fn_where_clause = quote!{
+        I : ::std::iter::Iterator + ::std::clone::Clone,
+        <I as ::std::iter::Iterator>::Item :
+            // TODO: Collect what we compare with!
+              ::std::cmp::PartialEq<char>
+
+            + ::std::fmt::Display
+    };
+
+    // Generate extra functions
+    let grow_code = match rec {
+        bnf::LeftRecursion::None => quote!{},
+
+        bnf::LeftRecursion::Direct => {quote!{
+            fn #grow_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
+                old: ::yk_parser::ParseResult<I, #ret_ty>) -> ::yk_parser::ParseResult<I, #ret_ty>
+                where #fn_where_clause {
+
+                let curr_rule = #name;
+
+                if old.is_err() {
+                    return old.clone();
+                }
+
+                let old_ok = old.ok();
+                let tmp_res = { #code };
+
+                // TODO: Oof, unnecessary cloning
+                if tmp_res.is_ok() {
+                    let tmp_ok = tmp_res.ok();
+                    if old_ok.furthest_look() < tmp_ok.furthest_look() {
+                        // Successfully grew the seed
+                        memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(::yk_parser::ParseResult::Ok(tmp_ok)));
+                        let new_old = memo.#memo_id.get(&idx).unwrap().parse_result();
+                        return #grow_fname(memo, src, idx, new_old.clone());
+                    }
+                    else {
+                        // We need to overwrite max-furthest in the memo-table!
+                        // That's why we don't simply return old_res
+                        let updated = ::yk_parser::ParseResult::unify_alternatives(
+                            ::yk_parser::ParseResult::Ok(tmp_ok), ::yk_parser::ParseResult::Ok(old_ok));
+                        memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(updated));
+                        let inserted = memo.#memo_id.get(&idx).unwrap().parse_result();
+                        return inserted.clone();
+                    }
+                }
+                else {
+                    // We need to overwrite max-furthest in the memo-table!
+                    // That's why we don't simply return old_res
+                    let updated = ::yk_parser::ParseResult::unify_alternatives(
+                        tmp_res, ::yk_parser::ParseResult::Ok(old_ok));
+                    memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(updated));
+                    let inserted = memo.#memo_id.get(&idx).unwrap().parse_result();
+                    return inserted.clone();
+                }
+            }
+        }},
+
+        bnf::LeftRecursion::Indirect => unimplemented!(),
+    };
+
     let parser_fn = quote!{
+        #grow_code
+
         fn #fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize) ->
             ::yk_parser::ParseResult<I, #ret_ty>
-            where I : ::std::iter::Iterator + ::std::clone::Clone,
-            <I as ::std::iter::Iterator>::Item :
-                // TODO: Collect what we compare with!
-                  ::std::cmp::PartialEq<char>
-
-                + ::std::fmt::Display
-                {
+            where #fn_where_clause {
 
             let curr_rule = #name;
             #memo_code

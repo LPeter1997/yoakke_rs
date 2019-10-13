@@ -58,6 +58,13 @@ impl <I, T> ParseResult<I, T> {
         }
     }
 
+    pub fn furthest_look(&self) -> usize {
+        match self {
+            ParseResult::Ok(ok) => ok.furthest_look(),
+            ParseResult::Err(err) => err.furthest_look(),
+        }
+    }
+
     pub fn unify_alternatives(a: Self, b: Self) -> Self {
         match (a, b) {
             (ParseResult::Ok(mut a), ParseResult::Ok(mut b)) => {
@@ -140,24 +147,42 @@ impl <I, T> ParseResult<I, T> {
         }
         else {
             // We unify the errors
-            assert_eq!(a.found_element, b.found_element);
-
-            let mut elements = a.elements;
-            for (k, v) in b.elements {
-                if elements.contains_key(&k) {
-                    let err = elements.get_mut(&k).unwrap();
-                    err.expected_elements.extend(v.expected_elements);
+            // Special case if one is an empty element
+            if a.found_element == "" {
+                b
+            }
+            else if b.found_element == "" {
+                a
+            }
+            else {
+                let mut elements = a.elements;
+                for (k, v) in b.elements {
+                    if elements.contains_key(&k) {
+                        let err = elements.get_mut(&k).unwrap();
+                        err.expected_elements.extend(v.expected_elements);
+                    }
+                    else {
+                        elements.insert(k, v);
+                    }
                 }
-                else {
-                    elements.insert(k, v);
+
+                ParseErr{
+                    furthest_look: a.furthest_look,
+                    found_element: a.found_element,
+                    elements
                 }
             }
+        }
+    }
+}
 
-            ParseErr{
-                furthest_look: a.furthest_look,
-                found_element: a.found_element,
-                elements
-            }
+impl <I, T> ParseOk<I, T> {
+    pub fn furthest_look(&self) -> usize {
+        if let Some(err) = &self.furthest_error {
+            std::cmp::max(self.furthest_look, err.furthest_look())
+        }
+        else {
+            self.furthest_look
         }
     }
 }
@@ -171,6 +196,10 @@ impl ParseErr {
         let mut elements = HashMap::new();
         elements.insert(rule.clone(), ParseErrElement::single(rule, expected_element));
         Self{ furthest_look, found_element, elements }
+    }
+
+    pub fn furthest_look(&self) -> usize {
+        self.furthest_look
     }
 }
 
