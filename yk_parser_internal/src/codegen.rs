@@ -178,12 +178,12 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     return old.clone();
                 }
 
-                let old_ok = old.ok();
+                let old_ok = old.ok().unwrap();
                 let tmp_res = { #code };
 
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() {
-                    let tmp_ok = tmp_res.ok();
+                    let tmp_ok = tmp_res.ok().unwrap();
                     if old_ok.furthest_look() < tmp_ok.furthest_look() {
                         // Successfully grew the seed
                         memo.#memo_id.insert(idx, drec::DirectRec::Recurse(ParseResult::Ok(tmp_ok)));
@@ -262,14 +262,12 @@ fn generate_code_transformation(rs: &bnf::RuleSet, counter: usize,
 
     let code = quote!{{
         let res = { #code };
-        if let ParseResult::Ok(ParseOk{
-            furthest_look, furthest_it, furthest_error, value: (#params) }) = res {
+        if let ParseResult::Ok(ParseOk{ matched, furthest_it, furthest_error, value: (#params) }) = res {
             let value = (#closure)(#params);
-            ParseResult::Ok(ParseOk{
-                furthest_look, furthest_it, furthest_error, value })
+            ParseOk{ matched, furthest_it, furthest_error, value }.into()
         }
         else {
-            ParseResult::Err(res.err())
+            res.err().unwrap().into()
         }
     }};
 
@@ -308,24 +306,22 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
         let res1 = { #code1 };
         if let ParseResult::Ok(ok) = res1 {
             let src = ok.furthest_it.clone();
-            let idx = ok.furthest_look;
+            let idx = ok.matched;
             let res2 = { #code2 };
 
             let res_tmp = ParseResult::unify_sequence(ok, res2);
 
-            if let ParseResult::Ok(ParseOk{
-                furthest_look, furthest_it, furthest_error, value: ((#params1), (#params2)) }) = res_tmp {
+            if let ParseResult::Ok(ParseOk{ matched, furthest_it, furthest_error, value: ((#params1), (#params2)) }) = res_tmp {
 
                 // Flatten
-                ParseResult::Ok(ParseOk{
-                    furthest_look, furthest_it, furthest_error, value: (#params1, #params2) })
+                ParseOk{ matched, furthest_it, furthest_error, value: (#params1, #params2) }.into()
             }
             else {
-                ParseResult::Err(res_tmp.err())
+                res_tmp.err().unwrap().into()
             }
         }
         else {
-            ParseResult::Err(res1.err())
+            res1.err().unwrap().into()
         }
     }};
 
@@ -341,18 +337,15 @@ fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
             if v == #lit {
-                ParseResult::Ok(ParseOk{
-                    furthest_look: idx + 1, furthest_it: src2, furthest_error: None, value: (v) })
+                ParseOk{ matched: idx + 1, furthest_it: src2, furthest_error: None, value: (v) }.into()
             }
             else {
                 let got = format!("{}", v);
-                ParseResult::Err(ParseErr::single(
-                    idx, got, curr_rule.into(), #lit_str.into()))
+                ParseErr::single(idx, got, curr_rule, #lit_str.into()).into()
             }
         }
         else {
-            ParseResult::Err(ParseErr::single(
-                idx, "end of input".into(), curr_rule.into(), #lit_str.into()))
+            ParseErr::single(idx, "end of input".into(), curr_rule, #lit_str.into()).into()
         }
     }};
 
@@ -381,18 +374,15 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
             if v == #lit {
-                ParseResult::Ok(ParseOk{
-                    furthest_look: idx + 1, furthest_it: src2, furthest_error: None, value: (v) })
+                ParseOk{ matched: idx + 1, furthest_it: src2, furthest_error: None, value: (v) }.into()
             }
             else {
                 let got = format!("{}", v);
-                ParseResult::Err(ParseErr::single(
-                    idx, got, curr_rule.into(), #lit_str.into()))
+                ParseErr::single(idx, got, curr_rule, #lit_str.into()).into()
             }
         }
         else {
-            ParseResult::ErrParseErr::single(
-                idx, "end of input".into(), curr_rule.into(), #lit_str.into())
+            ParseErr::single(idx, "end of input".into(), curr_rule, #lit_str.into()).into()
         }
     }};
     return (code, counter + 1);

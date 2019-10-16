@@ -81,11 +81,11 @@ fn main() {
 
     let r = parser::parse_addition(&mut parser::MemoContext::new(), src.chars(), 0);
     if r.is_ok() {
-        let val = r.ok().value;
+        let val = r.ok().unwrap().value;
         println!("Ok: {:?}", val);
     }
     else {
-        let err = r.err();
+        let err = r.err().unwrap();
         println!("Err:");
         for (rule, element) in err.elements {
             print!("  While parsing {} expected: ", rule);
