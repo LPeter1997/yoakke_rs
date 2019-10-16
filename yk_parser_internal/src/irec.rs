@@ -4,7 +4,7 @@
 
 use std::collections::{HashSet, HashMap};
 use std::rc::Rc;
-use crate::parse_result::ParseResult;
+use std::any::Any;
 
 // Recursion head
 
@@ -23,14 +23,14 @@ impl RecursionHead {
 // Left recursive
 
 pub struct LeftRecursive {
-    // TODO: Left out seed, didn't see usage anywhere
     pub parser: String,
+    pub seed: Box<dyn Any>,
     pub head: Option<RecursionHead>,
 }
 
 impl LeftRecursive {
-    pub fn with_parser(parser: String) -> Self {
-        Self{ parser, head: None }
+    pub fn with_parser_and_seed(parser: String, seed: Box<dyn Any>) -> Self {
+        Self{ parser, seed, head: None }
     }
 }
 

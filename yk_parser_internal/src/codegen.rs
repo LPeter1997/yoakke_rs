@@ -139,7 +139,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         }},
 
         bnf::LeftRecursion::Indirect => {unimplemented!(); quote!{
-
+            let lr_stack = &memo.call_stack;
         }}
     };
 
