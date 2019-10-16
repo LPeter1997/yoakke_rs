@@ -262,9 +262,8 @@ fn generate_code_transformation(rs: &bnf::RuleSet, counter: usize,
 
     let code = quote!{{
         let res = { #code };
-        if let ParseResult::Ok(ParseOk{ matched, furthest_it, furthest_error, value: (#params) }) = res {
-            let value = (#closure)(#params);
-            ParseOk{ matched, furthest_it, furthest_error, value }.into()
+        if let ParseResult::Ok(ok) = res {
+            ok.map(|(#params)| (#closure)(#params)).into()
         }
         else {
             res.err().unwrap().into()
@@ -305,16 +304,17 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
     let code = quote!{{
         let res1 = { #code1 };
         if let ParseResult::Ok(ok) = res1 {
+            // Overwrite positional data for the next part's invocation
             let src = ok.furthest_it.clone();
             let idx = ok.matched;
+            // Invoke RHS
             let res2 = { #code2 };
 
             let res_tmp = ParseResult::unify_sequence(ok, res2);
 
-            if let ParseResult::Ok(ParseOk{ matched, furthest_it, furthest_error, value: ((#params1), (#params2)) }) = res_tmp {
-
+            if let ParseResult::Ok(ok) = res_tmp {
                 // Flatten
-                ParseOk{ matched, furthest_it, furthest_error, value: (#params1, #params2) }.into()
+                ok.map(|((#params1), (#params2))| (#params1, #params2)).into()
             }
             else {
                 res_tmp.err().unwrap().into()
@@ -331,25 +331,7 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
 fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
     lit: &Lit) -> (TokenStream, usize) {
 
-    let lit_str = format!("{}", lit.into_token_stream());
-
-    let code = quote!{{
-        let mut src2 = src.clone();
-        if let Some(v) = src2.next() {
-            if v == #lit {
-                ParseOk{ matched: idx + 1, furthest_it: src2, furthest_error: None, value: (v) }.into()
-            }
-            else {
-                let got = format!("{}", v);
-                ParseErr::single(idx, got, curr_rule, #lit_str.into()).into()
-            }
-        }
-        else {
-            ParseErr::single(idx, "end of input".into(), curr_rule, #lit_str.into()).into()
-        }
-    }};
-
-    (code, counter + 1)
+    generate_code_atom(counter, quote!{ #lit })
 }
 
 fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
@@ -367,13 +349,16 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
         }
     }
 
-    let lit_str = format!("{}", lit.into_token_stream());
-
     // Some identifier
+    return generate_code_atom(counter, quote!{ #lit });
+}
+
+fn generate_code_atom(counter: usize, tok: TokenStream) -> (TokenStream, usize) {
+    let lit_str = format!("{}", tok);
     let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
-            if v == #lit {
+            if v == #tok {
                 ParseOk{ matched: idx + 1, furthest_it: src2, furthest_error: None, value: (v) }.into()
             }
             else {
@@ -385,7 +370,7 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
             ParseErr::single(idx, "end of input".into(), curr_rule, #lit_str.into()).into()
         }
     }};
-    return (code, counter + 1);
+    (code, counter + 1)
 }
 
 // Helpers

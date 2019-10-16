@@ -197,6 +197,15 @@ impl <I, T> ParseOk<I, T> {
             self.matched
         }
     }
+
+    pub fn map<F, U>(self, f: F) -> ParseOk<I, U> where F: FnOnce(T) -> U {
+        ParseOk{
+            matched: self.matched,
+            furthest_it: self.furthest_it,
+            furthest_error: self.furthest_error,
+            value: f(self.value),
+        }
+    }
 }
 
 impl ParseErr {
