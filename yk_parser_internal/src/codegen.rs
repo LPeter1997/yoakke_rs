@@ -56,6 +56,9 @@ fn generate_code_rule(rs: &bnf::RuleSet,
 
     let fname = quote::format_ident!("parse_{}", name);
     let grow_fname = quote::format_ident!("grow_{}", name);
+    let recall_fname = quote::format_ident!("recall_{}", name);
+    let setup_lr_fname = quote::format_ident!("setup_lr_{}", name);
+    let lr_answer_fname = quote::format_ident!("lr_answer_{}", name);
     let memo_id = quote::format_ident!("memo_{}", name);
 
     // TODO: Proper return type
@@ -139,7 +142,38 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         }},
 
         bnf::LeftRecursion::Indirect => {unimplemented!(); quote!{
+            // TODO: Oof... We are cloning the result!
             let lr_stack = &memo.call_stack;
+            let m = #recall_fname(memo, src, idx);
+            if m.is_none() {
+                let base = ::std::rc::Rc::new(::yk_parser::irec::LeftRecursive::with_parser_and_seed(
+                    String::from(#name), ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::new())));
+                lr_stack.push(base);
+                memo.#memo_id.insert(idx, base);
+                let tmp_res = { #code };
+                lr_stack.pop();
+
+                if base.head.is_none() {
+                    memo.#memo_id.insert(idx, tmp_res);
+                    memo.#memo_id.get(idx).unwrap().clone()
+                }
+                else {
+                    base.seed = tmp_res;
+                    #lr_answer_fname(idx, base)
+                }
+            }
+            else {
+                let entry = m.unwrap();
+
+                if /* is Rc<LeftRecursive> */ {
+                    let lr = entry. /* extract */;
+                    #setup_lr_fname(idx, lr);
+                    lr.seed. /* to ParseResult<T> */
+                }
+                else {
+                    entry. /* ParseResult<T> */
+                }
+            }
         }}
     };
 
