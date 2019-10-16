@@ -141,40 +141,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             }
         }},
 
-        bnf::LeftRecursion::Indirect => {unimplemented!(); quote!{
-            // TODO: Oof... We are cloning the result!
-            let lr_stack = &memo.call_stack;
-            let m = #recall_fname(memo, src, idx);
-            if m.is_none() {
-                let base = ::std::rc::Rc::new(::yk_parser::irec::LeftRecursive::with_parser_and_seed(
-                    String::from(#name), ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::new())));
-                lr_stack.push(base);
-                memo.#memo_id.insert(idx, base);
-                let tmp_res = { #code };
-                lr_stack.pop();
-
-                if base.head.is_none() {
-                    memo.#memo_id.insert(idx, tmp_res);
-                    memo.#memo_id.get(idx).unwrap().clone()
-                }
-                else {
-                    base.seed = tmp_res;
-                    #lr_answer_fname(idx, base)
-                }
-            }
-            else {
-                let entry = m.unwrap();
-
-                if /* is Rc<LeftRecursive> */ {
-                    let lr = entry. /* extract */;
-                    #setup_lr_fname(idx, lr);
-                    lr.seed. /* to ParseResult<T> */
-                }
-                else {
-                    entry. /* ParseResult<T> */
-                }
-            }
-        }}
+        bnf::LeftRecursion::Indirect => { unimplemented!(); }
     };
 
     let fn_where_clause = quote!{
@@ -235,42 +202,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             }
         }},
 
-        bnf::LeftRecursion::Indirect => {unimplemented!(); quote!{
-            fn #recall_fname(memo: &mut MemoContext<I>, src: I, idx: usize)
-                ::std::option::Option<::yk_parser::ParseResult<I, #ret_ty>>
-                where #fn_where_clause {
-
-                let heads = &memo.call_heads;
-                let cached = memo.get(idx);
-                let in_heads = heads.get(idx);
-
-                if in_heads.is_none() {
-                    if cached.is_none() {
-                        return None;
-                    }
-                    else {
-                        return cached.unwrap();
-                    }
-                }
-                else {
-                    let h = in_heads.unwrap();
-                    if cached.is_none() && !(#name == h.parser || h.involved.contains(#name)) {
-                        return Some(::yk_parser::ParseReesult::Err(::yk_parser::ParseErr::new()));
-                    }
-                    else {
-                        if h.eval.contains(#name) {
-                            h.eval.remove(#name);
-                            let tmp_res = { #code };
-                            memo.put(idx, tmp_res);
-                            return memo.get(idx);
-                        }
-                        else {
-                            return cached;
-                        }
-                    }
-                }
-            }
-        }},
+        bnf::LeftRecursion::Indirect => { unimplemented!(); },
     };
 
     let parser_fn = quote!{

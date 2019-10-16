@@ -46,20 +46,40 @@ enum TokTy {
 }
 
 yk_parser!{
-    ones ::=
+    /*ones ::=
         | ones_impl
         ;
 
     ones_impl ::=
         | ones '1' { e0 + 1 }
         | '1' { 1 }
+        ;*/
+
+    addition ::=
+        | addition '+' multiplication { e0 + e2 }
+        | addition '-' multiplication { e0 - e2 }
+        | multiplication
+        ;
+
+    multiplication ::=
+        | multiplication '*' atomic { e0 * e2 }
+        | multiplication '/' atomic { e0 / e2 }
+        | atomic
+        ;
+
+    atomic ::=
+        | '0' { 0 }
+        | '1' { 1 }
+        | '2' { 2 }
+        | '3' { 3 }
+        | '(' addition ')' { e1 }
         ;
 }
 
 fn main() {
     let src = "1+2*3";
 
-    let r = parse_ones(&mut MemoContext::new(), src.chars(), 0);
+    let r = parse_addition(&mut MemoContext::new(), src.chars(), 0);
     if r.is_ok() {
         let val = r.ok().value;
         println!("Ok: {:?}", val);

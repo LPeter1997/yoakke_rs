@@ -57,7 +57,7 @@ impl <'a> CallHeadTable<'a> {
 // Call stack
 
 pub struct CallStack {
-    stack: Vec<Rc<LeftRecursive>>,
+    pub stack: Vec<Rc<LeftRecursive>>,
 }
 
 impl CallStack {
