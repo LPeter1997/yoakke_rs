@@ -235,7 +235,42 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             }
         }},
 
-        bnf::LeftRecursion::Indirect => unimplemented!(),
+        bnf::LeftRecursion::Indirect => {unimplemented!(); quote!{
+            fn #recall_fname(memo: &mut MemoContext<I>, src: I, idx: usize)
+                ::std::option::Option<::yk_parser::ParseResult<I, #ret_ty>>
+                where #fn_where_clause {
+
+                let heads = &memo.call_heads;
+                let cached = memo.get(idx);
+                let in_heads = heads.get(idx);
+
+                if in_heads.is_none() {
+                    if cached.is_none() {
+                        return None;
+                    }
+                    else {
+                        return cached.unwrap();
+                    }
+                }
+                else {
+                    let h = in_heads.unwrap();
+                    if cached.is_none() && !(#name == h.parser || h.involved.contains(#name)) {
+                        return Some(::yk_parser::ParseReesult::Err(::yk_parser::ParseErr::new()));
+                    }
+                    else {
+                        if h.eval.contains(#name) {
+                            h.eval.remove(#name);
+                            let tmp_res = { #code };
+                            memo.put(idx, tmp_res);
+                            return memo.get(idx);
+                        }
+                        else {
+                            return cached;
+                        }
+                    }
+                }
+            }
+        }},
     };
 
     let parser_fn = quote!{
