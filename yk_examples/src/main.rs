@@ -3,7 +3,7 @@ extern crate yk_lexer;
 extern crate yk_parser;
 
 use yk_lexer::{TokenType, Lexer};
-use yk_parser::yk_parser;
+use yk_parser::{yk_parser, ParseResult};
 
 #[derive(yk_lexer::Lexer, PartialEq, Eq, Debug)]
 enum TokTy {
@@ -79,7 +79,7 @@ yk_parser!{
 fn main() {
     let src = "1+2*3";
 
-    let r = parse_addition(&mut MemoContext::new(), src.chars(), 0);
+    let r = parser::parse_addition(&mut parser::MemoContext::new(), src.chars(), 0);
     if r.is_ok() {
         let val = r.ok().value;
         println!("Ok: {:?}", val);

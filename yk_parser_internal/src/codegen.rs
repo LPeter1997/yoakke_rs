@@ -28,24 +28,36 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 
         parser_fns.push(parser_fn);
 
-        memo_members.push(quote!{ #memo_id: ::std::collections::HashMap<usize, #memo_ty> });
-        memo_ctor.push(quote!{ #memo_id: ::std::collections::HashMap::new() });
+        memo_members.push(quote!{ #memo_id: HashMap<usize, #memo_ty> });
+        memo_ctor.push(quote!{ #memo_id: HashMap::new() });
     }
 
     quote!{
-        struct MemoContext<I> {
-            #(#memo_members),*
-        }
+        mod parser {
+            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr};
+            use ::std::string::String;
+            use ::std::option::Option;
+            use ::std::collections::HashMap;
+            use ::std::iter::Iterator;
+            use ::std::clone::Clone;
+            use ::std::cmp::PartialEq;
+            // TODO: Is this temporary
+            use ::std::fmt::Display;
 
-        impl <I> MemoContext<I> {
-            fn new() -> Self {
-                Self{
-                    #(#memo_ctor),*
+            pub struct MemoContext<I> {
+                #(#memo_members),*
+            }
+
+            impl <I> MemoContext<I> {
+                pub fn new() -> Self {
+                    Self{
+                        #(#memo_ctor),*
+                    }
                 }
             }
-        }
 
-        #(#parser_fns)*
+            #(#parser_fns)*
+        }
     }
 }
 
@@ -68,11 +80,11 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let rec = rs.left_recursion(name);
     let memo_ty = match rec {
         bnf::LeftRecursion::None => {quote!{
-            ::yk_parser::ParseResult<I, #ret_ty>
+            ParseResult<I, #ret_ty>
         }},
 
         bnf::LeftRecursion::Direct => {quote!{
-            ::yk_parser::DirectRec<I, #ret_ty>
+            drec::DirectRec<I, #ret_ty>
         }},
 
         bnf::LeftRecursion::Indirect => {
@@ -99,43 +111,42 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             match memo.#memo_id.get(&idx) {
                 None => {
                     // Nothing is in the cache, write a dummy error
-                    memo.#memo_id.insert(idx,
-                        ::yk_parser::DirectRec::Base(::yk_parser::ParseResult::Err(::yk_parser::ParseErr::new()), true));
+                    memo.#memo_id.insert(idx, drec::DirectRec::Base(ParseResult::Err(ParseErr::new()), true));
                     // Now invoke the parser
                     // If it's recursive, the entry must have changed
                     let tmp_res = { #code };
                     // Refresh the entry, check
                     match memo.#memo_id.get(&idx).unwrap() {
-                        ::yk_parser::DirectRec::Recurse(_) => {
+                        drec::DirectRec::Recurse(_) => {
                             // We are in recursion!
-                            memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(tmp_res));
+                            memo.#memo_id.insert(idx, drec::DirectRec::Recurse(tmp_res));
                             let old = memo.#memo_id.get(&idx).unwrap().parse_result();
                             #grow_fname(memo, src.clone(), idx, old.clone())
                         },
 
-                        ::yk_parser::DirectRec::Base(_, _) => {
+                        drec::DirectRec::Base(_, _) => {
                             // No change, write back result
                             // Overwrite the base-type to contain the result
-                            memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Base(tmp_res, false));
+                            memo.#memo_id.insert(idx, drec::DirectRec::Base(tmp_res, false));
                             let inserted = memo.#memo_id.get(&idx).unwrap();
                             inserted.parse_result().clone()
                         }
                     }
                 },
 
-                Some(::yk_parser::DirectRec::Base(res, true)) => {
+                Some(drec::DirectRec::Base(res, true)) => {
                     // Recursion signal, write back a dummy error to start!
                     // TODO: Instead of cloning we could just remove it from here!
-                    memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(::yk_parser::ParseResult::Err(::yk_parser::ParseErr::new())));
+                    memo.#memo_id.insert(idx, drec::DirectRec::Recurse(ParseResult::Err(ParseErr::new())));
                     let inserted = memo.#memo_id.get(&idx).unwrap();
                     inserted.parse_result().clone()
                 },
 
-                Some(::yk_parser::DirectRec::Base(res, false)) => {
+                Some(drec::DirectRec::Base(res, false)) => {
                     res.clone()
                 },
 
-                Some(::yk_parser::DirectRec::Recurse(res)) => {
+                Some(drec::DirectRec::Recurse(res)) => {
                     res.clone()
                 }
             }
@@ -145,12 +156,11 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     };
 
     let fn_where_clause = quote!{
-        I : ::std::iter::Iterator + ::std::clone::Clone,
-        <I as ::std::iter::Iterator>::Item :
+        I : Iterator + Clone,
+        <I as Iterator>::Item :
             // TODO: Collect what we compare with!
-              ::std::cmp::PartialEq<char>
-
-            + ::std::fmt::Display
+              PartialEq<char>
+            + Display
     };
 
     // Generate extra functions
@@ -159,7 +169,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
 
         bnf::LeftRecursion::Direct => {quote!{
             fn #grow_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
-                old: ::yk_parser::ParseResult<I, #ret_ty>) -> ::yk_parser::ParseResult<I, #ret_ty>
+                old: ParseResult<I, #ret_ty>) -> ParseResult<I, #ret_ty>
                 where #fn_where_clause {
 
                 let curr_rule = #name;
@@ -176,16 +186,16 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     let tmp_ok = tmp_res.ok();
                     if old_ok.furthest_look() < tmp_ok.furthest_look() {
                         // Successfully grew the seed
-                        memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(::yk_parser::ParseResult::Ok(tmp_ok)));
+                        memo.#memo_id.insert(idx, drec::DirectRec::Recurse(ParseResult::Ok(tmp_ok)));
                         let new_old = memo.#memo_id.get(&idx).unwrap().parse_result();
                         return #grow_fname(memo, src, idx, new_old.clone());
                     }
                     else {
                         // We need to overwrite max-furthest in the memo-table!
                         // That's why we don't simply return old_res
-                        let updated = ::yk_parser::ParseResult::unify_alternatives(
-                            ::yk_parser::ParseResult::Ok(tmp_ok), ::yk_parser::ParseResult::Ok(old_ok));
-                        memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(updated));
+                        let updated = ParseResult::unify_alternatives(
+                            ParseResult::Ok(tmp_ok), ParseResult::Ok(old_ok));
+                        memo.#memo_id.insert(idx, drec::DirectRec::Recurse(updated));
                         let inserted = memo.#memo_id.get(&idx).unwrap().parse_result();
                         return inserted.clone();
                     }
@@ -193,9 +203,9 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 else {
                     // We need to overwrite max-furthest in the memo-table!
                     // That's why we don't simply return old_res
-                    let updated = ::yk_parser::ParseResult::unify_alternatives(
-                        tmp_res, ::yk_parser::ParseResult::Ok(old_ok));
-                    memo.#memo_id.insert(idx, ::yk_parser::DirectRec::Recurse(updated));
+                    let updated = ParseResult::unify_alternatives(
+                        tmp_res, ParseResult::Ok(old_ok));
+                    memo.#memo_id.insert(idx, drec::DirectRec::Recurse(updated));
                     let inserted = memo.#memo_id.get(&idx).unwrap().parse_result();
                     return inserted.clone();
                 }
@@ -208,8 +218,8 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let parser_fn = quote!{
         #grow_code
 
-        fn #fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize) ->
-            ::yk_parser::ParseResult<I, #ret_ty>
+        pub fn #fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize) ->
+            ParseResult<I, #ret_ty>
             where #fn_where_clause {
 
             let curr_rule = #name;
@@ -252,14 +262,14 @@ fn generate_code_transformation(rs: &bnf::RuleSet, counter: usize,
 
     let code = quote!{{
         let res = { #code };
-        if let ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+        if let ParseResult::Ok(ParseOk{
             furthest_look, furthest_it, furthest_error, value: (#params) }) = res {
             let value = (#closure)(#params);
-            ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+            ParseResult::Ok(ParseOk{
                 furthest_look, furthest_it, furthest_error, value })
         }
         else {
-            ::yk_parser::ParseResult::Err(res.err())
+            ParseResult::Err(res.err())
         }
     }};
 
@@ -279,7 +289,7 @@ fn generate_code_alternative(rs: &bnf::RuleSet, counter: usize,
     let code = quote!{{
         let res1 = { #code1 };
         let res2 = { #code2 };
-        ::yk_parser::ParseResult::unify_alternatives(res1, res2)
+        ParseResult::unify_alternatives(res1, res2)
     }};
 
     (code, counter1)
@@ -296,26 +306,26 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
 
     let code = quote!{{
         let res1 = { #code1 };
-        if let ::yk_parser::ParseResult::Ok(ok) = res1 {
+        if let ParseResult::Ok(ok) = res1 {
             let src = ok.furthest_it.clone();
             let idx = ok.furthest_look;
             let res2 = { #code2 };
 
-            let res_tmp = ::yk_parser::ParseResult::unify_sequence(ok, res2);
+            let res_tmp = ParseResult::unify_sequence(ok, res2);
 
-            if let ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+            if let ParseResult::Ok(ParseOk{
                 furthest_look, furthest_it, furthest_error, value: ((#params1), (#params2)) }) = res_tmp {
 
                 // Flatten
-                ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+                ParseResult::Ok(ParseOk{
                     furthest_look, furthest_it, furthest_error, value: (#params1, #params2) })
             }
             else {
-                ::yk_parser::ParseResult::Err(res_tmp.err())
+                ParseResult::Err(res_tmp.err())
             }
         }
         else {
-            ::yk_parser::ParseResult::Err(res1.err())
+            ParseResult::Err(res1.err())
         }
     }};
 
@@ -331,18 +341,18 @@ fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
             if v == #lit {
-                ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+                ParseResult::Ok(ParseOk{
                     furthest_look: idx + 1, furthest_it: src2, furthest_error: None, value: (v) })
             }
             else {
                 let got = format!("{}", v);
-                ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
-                    idx, got, ::std::string::String::from(curr_rule), ::std::string::String::from(#lit_str)))
+                ParseResult::Err(ParseErr::single(
+                    idx, got, curr_rule.into(), #lit_str.into()))
             }
         }
         else {
-            ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
-                idx, ::std::string::String::from("end of input"), ::std::string::String::from(curr_rule), ::std::string::String::from(#lit_str)))
+            ParseResult::Err(ParseErr::single(
+                idx, "end of input".into(), curr_rule.into(), #lit_str.into()))
         }
     }};
 
@@ -371,18 +381,18 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
             if v == #lit {
-                ::yk_parser::ParseResult::Ok(::yk_parser::ParseOk{
+                ParseResult::Ok(ParseOk{
                     furthest_look: idx + 1, furthest_it: src2, furthest_error: None, value: (v) })
             }
             else {
                 let got = format!("{}", v);
-                ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
-                    idx, got, ::std::string::String::from(curr_rule), ::std::string::String::from(#lit_str)))
+                ParseResult::Err(ParseErr::single(
+                    idx, got, curr_rule.into(), #lit_str.into()))
             }
         }
         else {
-            ::yk_parser::ParseResult::Err(::yk_parser::ParseErr::single(
-                idx, ::std::string::String::from("end of input"), ::std::string::String::from(curr_rule), ::std::string::String::from(#lit_str)))
+            ParseResult::ErrParseErr::single(
+                idx, "end of input".into(), curr_rule.into(), #lit_str.into())
         }
     }};
     return (code, counter + 1);
