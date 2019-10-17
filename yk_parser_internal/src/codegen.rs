@@ -64,18 +64,31 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 fn generate_code_rule(rs: &bnf::RuleSet,
     name: &str, node: &bnf::Node) -> GeneratedRule {
 
+    // Generate code for the subrule
     let (code, counter) = generate_code_node(rs, 0, node);
-
-    let fname = quote::format_ident!("parse_{}", name);
-    let grow_fname = quote::format_ident!("grow_{}", name);
-    let recall_fname = quote::format_ident!("recall_{}", name);
-    let setup_lr_fname = quote::format_ident!("setup_lr_{}", name);
-    let lr_answer_fname = quote::format_ident!("lr_answer_{}", name);
-    let memo_id = quote::format_ident!("memo_{}", name);
 
     // TODO: Proper return type
     let ret_tys: Vec<_> = (0..counter).map(|_| quote!{ i32 }).collect();
     let ret_ty = quote!{ (#(#ret_tys),*) };
+
+    // Any function that wants to respect the same constraints as the parser will have to
+    // have this where clause
+    let where_clause = quote!{
+        I : Iterator + Clone,
+        <I as Iterator>::Item :
+            // TODO: Collect what we compare with!
+              PartialEq<char>
+
+            + Display
+    };
+
+    // Identifiers for this parser
+    let parse_fname = quote::format_ident!("parse_{}", name);
+    let grow_fname = quote::format_ident!("grow_{}", name);
+    let memo_id = quote::format_ident!("memo_{}", name);
+
+    // How to reference the memo table's current entry
+    let memo_entry = quote!{ memo.#memo_id };
 
     let rec = rs.left_recursion(name);
     let memo_ty = match rec {
@@ -95,40 +108,40 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let memo_code = match rec {
         bnf::LeftRecursion::None => {quote!{
             // TODO: Oof... We are cloning the result!
-            if let Some(res) = memo.#memo_id.get(&idx) {
+            if let Some(res) = #memo_entry.get(&idx) {
                 res.clone()
             }
             else {
                 let res = { #code };
-                memo.#memo_id.insert(idx, res);
-                let inserted = memo.#memo_id.get(&idx).unwrap();
+                #memo_entry.insert(idx, res);
+                let inserted = #memo_entry.get(&idx).unwrap();
                 inserted.clone()
             }
         }},
 
         bnf::LeftRecursion::Direct => {quote!{
             // TODO: Oof... We are cloning the result!
-            match memo.#memo_id.get(&idx) {
+            match #memo_entry.get(&idx) {
                 None => {
                     // Nothing is in the cache, write a dummy error
-                    memo.#memo_id.insert(idx, drec::DirectRec::Base(ParseResult::Err(ParseErr::new()), true));
+                    #memo_entry.insert(idx, drec::DirectRec::Base(ParseErr::new().into(), true));
                     // Now invoke the parser
                     // If it's recursive, the entry must have changed
                     let tmp_res = { #code };
                     // Refresh the entry, check
-                    match memo.#memo_id.get(&idx).unwrap() {
+                    match #memo_entry.get(&idx).unwrap() {
                         drec::DirectRec::Recurse(_) => {
                             // We are in recursion!
-                            memo.#memo_id.insert(idx, drec::DirectRec::Recurse(tmp_res));
-                            let old = memo.#memo_id.get(&idx).unwrap().parse_result();
+                            #memo_entry.insert(idx, drec::DirectRec::Recurse(tmp_res));
+                            let old = #memo_entry.get(&idx).unwrap().parse_result();
                             #grow_fname(memo, src.clone(), idx, old.clone())
                         },
 
                         drec::DirectRec::Base(_, _) => {
                             // No change, write back result
                             // Overwrite the base-type to contain the result
-                            memo.#memo_id.insert(idx, drec::DirectRec::Base(tmp_res, false));
-                            let inserted = memo.#memo_id.get(&idx).unwrap();
+                            #memo_entry.insert(idx, drec::DirectRec::Base(tmp_res, false));
+                            let inserted = #memo_entry.get(&idx).unwrap();
                             inserted.parse_result().clone()
                         }
                     }
@@ -137,8 +150,8 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 Some(drec::DirectRec::Base(res, true)) => {
                     // Recursion signal, write back a dummy error to start!
                     // TODO: Instead of cloning we could just remove it from here!
-                    memo.#memo_id.insert(idx, drec::DirectRec::Recurse(ParseResult::Err(ParseErr::new())));
-                    let inserted = memo.#memo_id.get(&idx).unwrap();
+                    #memo_entry.insert(idx, drec::DirectRec::Recurse(ParseErr::new().into()));
+                    let inserted = #memo_entry.get(&idx).unwrap();
                     inserted.parse_result().clone()
                 },
 
@@ -155,14 +168,6 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         bnf::LeftRecursion::Indirect => { unimplemented!(); }
     };
 
-    let fn_where_clause = quote!{
-        I : Iterator + Clone,
-        <I as Iterator>::Item :
-            // TODO: Collect what we compare with!
-              PartialEq<char>
-            + Display
-    };
-
     // Generate extra functions
     let grow_code = match rec {
         bnf::LeftRecursion::None => quote!{},
@@ -170,7 +175,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         bnf::LeftRecursion::Direct => {quote!{
             fn #grow_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
                 old: ParseResult<I, #ret_ty>) -> ParseResult<I, #ret_ty>
-                where #fn_where_clause {
+                where #where_clause {
 
                 let curr_rule = #name;
 
@@ -186,27 +191,25 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     let tmp_ok = tmp_res.ok().unwrap();
                     if old_ok.furthest_look() < tmp_ok.furthest_look() {
                         // Successfully grew the seed
-                        memo.#memo_id.insert(idx, drec::DirectRec::Recurse(ParseResult::Ok(tmp_ok)));
-                        let new_old = memo.#memo_id.get(&idx).unwrap().parse_result();
+                        #memo_entry.insert(idx, drec::DirectRec::Recurse(tmp_ok.into()));
+                        let new_old = #memo_entry.get(&idx).unwrap().parse_result();
                         return #grow_fname(memo, src, idx, new_old.clone());
                     }
                     else {
                         // We need to overwrite max-furthest in the memo-table!
                         // That's why we don't simply return old_res
-                        let updated = ParseResult::unify_alternatives(
-                            ParseResult::Ok(tmp_ok), ParseResult::Ok(old_ok));
-                        memo.#memo_id.insert(idx, drec::DirectRec::Recurse(updated));
-                        let inserted = memo.#memo_id.get(&idx).unwrap().parse_result();
+                        let updated = ParseResult::unify_alternatives(tmp_ok.into(), old_ok.into());
+                        #memo_entry.insert(idx, drec::DirectRec::Recurse(updated));
+                        let inserted = #memo_entry.get(&idx).unwrap().parse_result();
                         return inserted.clone();
                     }
                 }
                 else {
                     // We need to overwrite max-furthest in the memo-table!
                     // That's why we don't simply return old_res
-                    let updated = ParseResult::unify_alternatives(
-                        tmp_res, ParseResult::Ok(old_ok));
-                    memo.#memo_id.insert(idx, drec::DirectRec::Recurse(updated));
-                    let inserted = memo.#memo_id.get(&idx).unwrap().parse_result();
+                    let updated = ParseResult::unify_alternatives(tmp_res, old_ok.into());
+                    #memo_entry.insert(idx, drec::DirectRec::Recurse(updated));
+                    let inserted = #memo_entry.get(&idx).unwrap().parse_result();
                     return inserted.clone();
                 }
             }
@@ -218,9 +221,9 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let parser_fn = quote!{
         #grow_code
 
-        pub fn #fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize) ->
+        pub fn #parse_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize) ->
             ParseResult<I, #ret_ty>
-            where #fn_where_clause {
+            where #where_clause {
 
             let curr_rule = #name;
             #memo_code
