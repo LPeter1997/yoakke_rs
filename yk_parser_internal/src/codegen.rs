@@ -197,26 +197,22 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     let tmp_ok = tmp_res.ok().unwrap();
                     if old_ok.furthest_look() < tmp_ok.furthest_look() {
                         // Successfully grew the seed
-                        #memo_entry.insert(idx, drec::DirectRec::Recurse(tmp_ok.into()));
-                        let new_old = #memo_entry.get(&idx).unwrap().parse_result();
-                        return #grow_fname(memo, src, idx, new_old.clone());
+                        let new_old = insert_and_get(
+                            &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_ok.into())).parse_result().clone();
+                        return #grow_fname(memo, src, idx, new_old);
                     }
                     else {
                         // We need to overwrite max-furthest in the memo-table!
                         // That's why we don't simply return old_res
                         let updated = ParseResult::unify_alternatives(tmp_ok.into(), old_ok.into());
-                        #memo_entry.insert(idx, drec::DirectRec::Recurse(updated));
-                        let inserted = #memo_entry.get(&idx).unwrap().parse_result();
-                        return inserted.clone();
+                        insert_and_get(&mut #memo_entry, idx, drec::DirectRec::Recurse(updated)).parse_result().clone()
                     }
                 }
                 else {
                     // We need to overwrite max-furthest in the memo-table!
                     // That's why we don't simply return old_res
                     let updated = ParseResult::unify_alternatives(tmp_res, old_ok.into());
-                    #memo_entry.insert(idx, drec::DirectRec::Recurse(updated));
-                    let inserted = #memo_entry.get(&idx).unwrap().parse_result();
-                    return inserted.clone();
+                    insert_and_get(&mut #memo_entry, idx, drec::DirectRec::Recurse(updated)).parse_result().clone()
                 }
             }
         }},
