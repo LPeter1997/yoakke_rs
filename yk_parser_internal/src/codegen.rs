@@ -130,7 +130,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             match #memo_entry.get(&idx) {
                 None => {
                     // Nothing is in the cache, write a dummy error
-                    #memo_entry.insert(idx, drec::DirectRec::Base(ParseErr::new().into(), true));
+                    #memo_entry.insert(idx, drec::DirectRec::Base(ParseErr::new().into()));
                     // Now invoke the parser
                     // If it's recursive, the entry must have changed
                     let tmp_res = { #code };
@@ -143,27 +143,25 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                             #grow_fname(memo, src.clone(), idx, old)
                         },
 
-                        drec::DirectRec::Base(_, _) => {
-                            // No change, write back result
-                            // Overwrite the base-type to contain the result
+                        drec::DirectRec::Base(_) => {
+                            // No change, write back result, prevent recursion
                             insert_and_get(
-                                &mut #memo_entry, idx, drec::DirectRec::Base(tmp_res, false)).parse_result().clone()
-                        }
+                                &mut #memo_entry, idx, drec::DirectRec::Stub(tmp_res)).parse_result().clone()
+                        },
+
+                        _ => panic!("Unreachable!"),
                     }
                 },
 
-                Some(drec::DirectRec::Base(res, true)) => {
+                Some(drec::DirectRec::Base(res)) => {
                     // Recursion signal, write back a dummy error to start!
                     // TODO: Instead of cloning we could just remove it from here!
                     insert_and_get(
                         &mut #memo_entry, idx, drec::DirectRec::Recurse(ParseErr::new().into())).parse_result().clone()
                 },
 
-                Some(drec::DirectRec::Base(res, false)) => {
-                    res.clone()
-                },
-
-                Some(drec::DirectRec::Recurse(res)) => {
+                  Some(drec::DirectRec::Stub(res))
+                | Some(drec::DirectRec::Recurse(res)) => {
                     res.clone()
                 }
             }
@@ -202,7 +200,8 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 // We need to overwrite max-furthest in the memo-table!
                 // That's why we don't simply return old_res
                 let updated = ParseResult::unify_alternatives(tmp_res, old);
-                return insert_and_get(&mut #memo_entry, idx, drec::DirectRec::Recurse(updated)).parse_result().clone();
+                return insert_and_get(
+                    &mut #memo_entry, idx, drec::DirectRec::Recurse(updated)).parse_result().clone();
             }
         }},
 
