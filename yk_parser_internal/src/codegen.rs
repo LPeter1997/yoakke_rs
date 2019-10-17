@@ -40,7 +40,8 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             use ::std::collections::HashMap;
             use ::std::iter::Iterator;
             use ::std::clone::Clone;
-            use ::std::cmp::PartialEq;
+            use ::std::cmp::{PartialEq, Eq};
+            use ::std::hash::Hash;
             // TODO: Is this temporary
             use ::std::fmt::Display;
 
@@ -54,6 +55,13 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                         #(#memo_ctor),*
                     }
                 }
+            }
+
+            // TODO: Probably something better?
+            // Like a custom hash map wrapper for the memo context tables?
+            fn insert_and_get<K, V>(m: &mut HashMap<K, V>, k: K, v: V) -> &V where K : Clone + Eq + Hash {
+                m.insert(k.clone(), v);
+                m.get(&k).unwrap()
             }
 
             #(#parser_fns)*
@@ -113,9 +121,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             }
             else {
                 let res = { #code };
-                #memo_entry.insert(idx, res);
-                let inserted = #memo_entry.get(&idx).unwrap();
-                inserted.clone()
+                insert_and_get(&mut #memo_entry, idx, res).clone()
             }
         }},
 
@@ -132,17 +138,16 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     match #memo_entry.get(&idx).unwrap() {
                         drec::DirectRec::Recurse(_) => {
                             // We are in recursion!
-                            #memo_entry.insert(idx, drec::DirectRec::Recurse(tmp_res));
-                            let old = #memo_entry.get(&idx).unwrap().parse_result();
-                            #grow_fname(memo, src.clone(), idx, old.clone())
+                            let old = insert_and_get(
+                                &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_res)).parse_result().clone();
+                            #grow_fname(memo, src.clone(), idx, old)
                         },
 
                         drec::DirectRec::Base(_, _) => {
                             // No change, write back result
                             // Overwrite the base-type to contain the result
-                            #memo_entry.insert(idx, drec::DirectRec::Base(tmp_res, false));
-                            let inserted = #memo_entry.get(&idx).unwrap();
-                            inserted.parse_result().clone()
+                            insert_and_get(
+                                &mut #memo_entry, idx, drec::DirectRec::Base(tmp_res, false)).parse_result().clone()
                         }
                     }
                 },
@@ -150,9 +155,8 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 Some(drec::DirectRec::Base(res, true)) => {
                     // Recursion signal, write back a dummy error to start!
                     // TODO: Instead of cloning we could just remove it from here!
-                    #memo_entry.insert(idx, drec::DirectRec::Recurse(ParseErr::new().into()));
-                    let inserted = #memo_entry.get(&idx).unwrap();
-                    inserted.parse_result().clone()
+                    insert_and_get(
+                        &mut #memo_entry, idx, drec::DirectRec::Recurse(ParseErr::new().into())).parse_result().clone()
                 },
 
                 Some(drec::DirectRec::Base(res, false)) => {
@@ -185,6 +189,8 @@ fn generate_code_rule(rs: &bnf::RuleSet,
 
                 let old_ok = old.ok().unwrap();
                 let tmp_res = { #code };
+
+                // TODO: Continue insert-and-get from here
 
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() {
