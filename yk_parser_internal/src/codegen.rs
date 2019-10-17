@@ -187,14 +187,11 @@ fn generate_code_rule(rs: &bnf::RuleSet,
 
                 let tmp_res = { #code };
                 // TODO: Oof, unnecessary cloning
-                if tmp_res.is_ok() {
-                    //let tmp_ok = tmp_res.ok().unwrap();
-                    if old.furthest_look() < tmp_res.furthest_look() {
-                        // Successfully grew the seed
-                        let new_old = insert_and_get(
-                            &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_res)).parse_result().clone();
-                        return #grow_fname(memo, src, idx, new_old);
-                    }
+                if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
+                    // Successfully grew the seed
+                    let new_old = insert_and_get(
+                        &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_res)).parse_result().clone();
+                    return #grow_fname(memo, src, idx, new_old);
                 }
 
                 // We need to overwrite max-furthest in the memo-table!
