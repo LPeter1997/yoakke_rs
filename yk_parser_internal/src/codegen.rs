@@ -184,36 +184,25 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 let curr_rule = #name;
 
                 if old.is_err() {
-                    return old.clone();
+                    return old;
                 }
 
-                let old_ok = old.ok().unwrap();
                 let tmp_res = { #code };
-
-                // TODO: Continue insert-and-get from here
-
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() {
-                    let tmp_ok = tmp_res.ok().unwrap();
-                    if old_ok.furthest_look() < tmp_ok.furthest_look() {
+                    //let tmp_ok = tmp_res.ok().unwrap();
+                    if old.furthest_look() < tmp_res.furthest_look() {
                         // Successfully grew the seed
                         let new_old = insert_and_get(
-                            &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_ok.into())).parse_result().clone();
+                            &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_res)).parse_result().clone();
                         return #grow_fname(memo, src, idx, new_old);
                     }
-                    else {
-                        // We need to overwrite max-furthest in the memo-table!
-                        // That's why we don't simply return old_res
-                        let updated = ParseResult::unify_alternatives(tmp_ok.into(), old_ok.into());
-                        insert_and_get(&mut #memo_entry, idx, drec::DirectRec::Recurse(updated)).parse_result().clone()
-                    }
                 }
-                else {
-                    // We need to overwrite max-furthest in the memo-table!
-                    // That's why we don't simply return old_res
-                    let updated = ParseResult::unify_alternatives(tmp_res, old_ok.into());
-                    insert_and_get(&mut #memo_entry, idx, drec::DirectRec::Recurse(updated)).parse_result().clone()
-                }
+
+                // We need to overwrite max-furthest in the memo-table!
+                // That's why we don't simply return old_res
+                let updated = ParseResult::unify_alternatives(tmp_res, old);
+                return insert_and_get(&mut #memo_entry, idx, drec::DirectRec::Recurse(updated)).parse_result().clone();
             }
         }},
 

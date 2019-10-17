@@ -77,7 +77,7 @@ yk_parser!{
 }
 
 fn main() {
-    let src = "1+2*3";
+    let src = "1*3+2*3";
 
     let r = parser::parse_addition(&mut parser::MemoContext::new(), src.chars(), 0);
     if r.is_ok() {
