@@ -8,6 +8,7 @@ use std::any::Any;
 
 // Recursion head
 
+#[derive(Clone)]
 pub struct RecursionHead {
     pub head: String,
     pub involved: HashSet<String>,
@@ -57,7 +58,7 @@ impl <'a> CallHeadTable<'a> {
 // Call stack
 
 pub struct CallStack {
-    pub stack: Vec<Rc<LeftRecursive>>,
+    stack: Vec<Rc<LeftRecursive>>,
 }
 
 impl CallStack {
@@ -71,5 +72,18 @@ impl CallStack {
 
     pub fn pop(&mut self) {
         self.pop();
+    }
+
+    pub fn setup_lr(&mut self, parser: &str, rec: &mut LeftRecursive) {
+        if rec.head.is_none() {
+            rec.head = Some(RecursionHead::with_head(parser.into()));
+        }
+        for elem in &mut self.stack {
+            if elem.parser == parser {
+                break;
+            }
+            Rc::get_mut(elem).unwrap().head = rec.head.clone();
+            rec.head.as_mut().unwrap().involved.insert(parser.into());
+        }
     }
 }
