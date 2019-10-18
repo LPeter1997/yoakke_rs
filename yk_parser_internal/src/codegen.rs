@@ -194,7 +194,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                         insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result().clone()
                     }
                     else {
-                        *base.seed = Box::new(tmp_res);
+                        Rc::get_mut(&mut base).unwrap().seed = Box::new(tmp_res);
                         #lr_answer_fname(memo, src.clone(), idx, Rc::get_mut(&mut base).unwrap())
                     }
                 },
