@@ -5,6 +5,7 @@
 use std::collections::{HashSet, HashMap};
 use std::rc::Rc;
 use std::any::Any;
+use crate::parse_result::ParseResult;
 
 // Recursion head
 
@@ -84,6 +85,23 @@ impl CallStack {
             }
             Rc::get_mut(elem).unwrap().head = rec.head.clone();
             rec.head.as_mut().unwrap().involved.insert(parser.into());
+        }
+    }
+}
+
+// Entry in the memo table
+
+pub enum Entry<I, T> {
+    LeftRecursive(Rc<LeftRecursive>),
+    ParseResult(ParseResult<I, T>),
+}
+
+impl <I, T> Entry<I, T> where I : Clone, T : Clone {
+    pub fn parse_result(&self) -> &ParseResult<I, T> where I: 'static, T: 'static {
+        match self {
+            Entry::LeftRecursive(lr) =>
+                lr.seed.downcast_ref::<ParseResult<I, T>>().unwrap(),
+            Entry::ParseResult(r) => r,
         }
     }
 }

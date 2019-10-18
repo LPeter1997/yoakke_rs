@@ -46,38 +46,18 @@ enum TokTy {
 }
 
 yk_parser!{
-    /*ones ::=
+    ones ::=
         | ones_impl
         ;
 
     ones_impl ::=
         | ones '1' { e0 + 1 }
         | '1' { 1 }
-        ;*/
-
-    addition ::=
-        | addition '+' multiplication { e0 + e2 }
-        | addition '-' multiplication { e0 - e2 }
-        | multiplication
-        ;
-
-    multiplication ::=
-        | multiplication '*' atomic { e0 * e2 }
-        | multiplication '/' atomic { e0 / e2 }
-        | atomic
-        ;
-
-    atomic ::=
-        | '0' { 0 }
-        | '1' { 1 }
-        | '2' { 2 }
-        | '3' { 3 }
-        | '(' addition ')' { e1 }
         ;
 }
 
 fn main() {
-    let src = "1+2+3+3";
+    let src = "1111";
 
     let r = parser::parse_addition(&mut parser::MemoContext::new(), src.chars(), 0);
     if r.is_ok() {
