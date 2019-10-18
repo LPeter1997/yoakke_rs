@@ -27,7 +27,8 @@ impl RecursionHead {
 pub struct LeftRecursive {
     pub parser: &'static str,
     pub seed: Box<dyn Any>,
-    pub head: Option<RecursionHead>,
+    // TODO: This should be more like an owning ref
+    pub head: Option<Rc<RecursionHead>>,
 }
 
 impl LeftRecursive {
@@ -42,20 +43,25 @@ impl LeftRecursive {
 
 // Call head tracking
 
-pub struct CallHeadTable<'a> {
-    heads: HashMap<usize, &'a RecursionHead>,
+pub struct CallHeadTable {
+    // TODO: This should be more like a weak ref
+    heads: HashMap<usize, Rc<RecursionHead>>,
 }
 
-impl <'a> CallHeadTable<'a> {
+impl CallHeadTable {
     pub fn new() -> Self {
         Self{ heads: HashMap::new() }
     }
 
-    pub fn get(&self, idx: usize) -> Option<&'a RecursionHead> {
-        self.heads.get(&idx).map(|h| *h)
+    pub fn get(&self, idx: &usize) -> Option<&Rc<RecursionHead>> {
+        self.heads.get(&idx)
     }
 
-    pub fn remove(&mut self, idx: usize) {
+    pub fn get_mut(&mut self, idx: &usize) -> Option<&mut Rc<RecursionHead>> {
+        self.heads.get_mut(&idx)
+    }
+
+    pub fn remove(&mut self, idx: &usize) {
         self.heads.remove(&idx);
     }
 }
@@ -72,29 +78,30 @@ impl CallStack {
     }
 
     pub fn push(&mut self, element: Rc<LeftRecursive>) {
-        self.push(element);
+        self.stack.push(element);
     }
 
     pub fn pop(&mut self) {
-        self.pop();
+        self.stack.pop();
     }
 
     pub fn setup_lr(&mut self, parser: &'static str, rec: &mut LeftRecursive) {
         if rec.head.is_none() {
-            rec.head = Some(RecursionHead::with_head(parser));
+            rec.head = Some(Rc::new(RecursionHead::with_head(parser)));
         }
         for elem in &mut self.stack.iter_mut().rev() {
             if elem.parser == parser {
                 break;
             }
             Rc::get_mut(elem).unwrap().head = rec.head.clone();
-            rec.head.as_mut().unwrap().involved.insert(parser);
+            Rc::get_mut(rec.head.as_mut().unwrap()).unwrap().involved.insert(parser);
         }
     }
 }
 
 // Entry in the memo table
 
+#[derive(Clone)]
 pub enum Entry<I, T> {
     LeftRecursive(Rc<LeftRecursive>),
     ParseResult(ParseResult<I, T>),

@@ -49,6 +49,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 
             pub struct MemoContext<I> {
                 call_stack: irec::CallStack,
+                call_heads: irec::CallHeadTable,
                 #(#memo_members),*
             }
 
@@ -56,6 +57,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                 pub fn new() -> Self {
                     Self{
                         call_stack: irec::CallStack::new(),
+                        call_heads: irec::CallHeadTable::new(),
                         #(#memo_ctor),*
                     }
                 }
@@ -248,7 +250,28 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 -> Option<irec::Entry<I, #ret_ty>>
                 where #where_clause {
 
-                unimplemented!();
+                let curr_rule = #name;
+
+                let cached = #memo_entry.get(&idx);
+                let in_heads = memo.call_heads.get_mut(&idx);
+
+                match (in_heads, cached) {
+                    (None, None) => None,
+                    (None, Some(c)) => Some((*c).clone()),
+
+                    (Some(h), c) => {
+                        if c.is_none() && !(#name == h.head || h.involved.contains(#name)) {
+                            Some(irec::Entry::ParseResult(ParseErr::new().into()))
+                        }
+                        else if Rc::get_mut(h).unwrap().eval.remove(#name) {
+                            let tmp_res = { #code };
+                            Some(insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).clone())
+                        }
+                        else {
+                            c.cloned()
+                        }
+                    }
+                }
             }
 
             fn #lr_answer_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
