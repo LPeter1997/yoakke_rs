@@ -42,16 +42,20 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             use ::std::clone::Clone;
             use ::std::cmp::{PartialEq, Eq};
             use ::std::hash::Hash;
+            use ::std::boxed::Box;
+            use ::std::rc::Rc;
             // TODO: Is this temporary
             use ::std::fmt::Display;
 
             pub struct MemoContext<I> {
+                call_stack: irec::CallStack,
                 #(#memo_members),*
             }
 
             impl <I> MemoContext<I> {
                 pub fn new() -> Self {
                     Self{
+                        call_stack: irec::CallStack::new(),
                         #(#memo_ctor),*
                     }
                 }
@@ -87,12 +91,19 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             // TODO: Collect what we compare with!
               PartialEq<char>
 
-            + Display
+            + Display,
+
+            // TODO: Do we need this everywhere?
+            // Can we at least get rid of the iterator?
+            I : 'static,
+            #ret_ty : 'static
     };
 
     // Identifiers for this parser
     let parse_fname = quote::format_ident!("parse_{}", name);
     let grow_fname = quote::format_ident!("grow_{}", name);
+    let recall_fname = quote::format_ident!("recall_{}", name);
+    let lr_answer_fname = quote::format_ident!("lr_answer_{}", name);
     let memo_id = quote::format_ident!("memo_{}", name);
 
     // How to reference the memo table's current entry
@@ -108,9 +119,9 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             drec::DirectRec<I, #ret_ty>
         }},
 
-        bnf::LeftRecursion::Indirect => {
-            unimplemented!();
-        }
+        bnf::LeftRecursion::Indirect => {quote!{
+            irec::Entry<I, #ret_ty>
+        }}
     };
 
     let memo_code = match rec {
@@ -167,7 +178,37 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             }
         }},
 
-        bnf::LeftRecursion::Indirect => { unimplemented!(); }
+        bnf::LeftRecursion::Indirect => {quote!{
+            let m = #recall_fname(memo, src.clone(), idx); // Option<irec::Entry<I, T>>
+
+            match m {
+                None => {
+                    let mut base =
+                        Rc::new(irec::LeftRecursive::with_parser_and_seed::<I, #ret_ty>(#name, ParseErr::new().into()));
+                    memo.call_stack.push(base.clone());
+                    #memo_entry.insert(idx, irec::Entry::LeftRecursive(base.clone()));
+                    let tmp_res = { #code };
+                    memo.call_stack.pop();
+
+                    if base.head.is_none() {
+                        insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result().clone()
+                    }
+                    else {
+                        *base.seed = Box::new(tmp_res);
+                        #lr_answer_fname(memo, src.clone(), idx, Rc::get_mut(&mut base).unwrap())
+                    }
+                },
+
+                Some(irec::Entry::LeftRecursive(mut lr)) => {
+                    memo.call_stack.setup_lr(#name, Rc::get_mut(&mut lr).unwrap());
+                    lr.parse_result().unwrap().clone()
+                },
+
+                Some(irec::Entry::ParseResult(r)) => {
+                    r.clone()
+                }
+            }
+        }}
     };
 
     // Generate extra functions
@@ -202,7 +243,22 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             }
         }},
 
-        bnf::LeftRecursion::Indirect => { unimplemented!(); },
+        bnf::LeftRecursion::Indirect => {quote!{
+            fn #recall_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize)
+                -> Option<irec::Entry<I, #ret_ty>>
+                where #where_clause {
+
+                unimplemented!();
+            }
+
+            fn #lr_answer_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
+                growable: &mut irec::LeftRecursive)
+                -> ParseResult<I, #ret_ty>
+                where #where_clause {
+
+                unimplemented!();
+            }
+        }},
     };
 
     let parser_fn = quote!{

@@ -59,7 +59,7 @@ yk_parser!{
 fn main() {
     let src = "1111";
 
-    let r = parser::parse_addition(&mut parser::MemoContext::new(), src.chars(), 0);
+    let r = parser::parse_ones(&mut parser::MemoContext::new(), src.chars(), 0);
     if r.is_ok() {
         let val = r.ok().unwrap().value;
         println!("Ok: {:?}", val);
