@@ -44,6 +44,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             use ::std::hash::Hash;
             use ::std::boxed::Box;
             use ::std::rc::Rc;
+            use ::std::cell::RefCell;
             // TODO: Is this temporary
             use ::std::fmt::Display;
 
@@ -202,6 +203,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 },
 
                 Some(irec::Entry::LeftRecursive(mut lr)) => {
+                    println!("Cnt: {}", Rc::strong_count(&lr));
                     memo.call_stack.setup_lr(#name, Rc::get_mut(&mut lr).unwrap());
                     lr.parse_result().unwrap().clone()
                 },

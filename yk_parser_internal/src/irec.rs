@@ -5,6 +5,7 @@
 use std::collections::{HashSet, HashMap};
 use std::rc::Rc;
 use std::any::Any;
+use std::cell::RefCell;
 use crate::parse_result::ParseResult;
 
 // Recursion head
@@ -28,7 +29,7 @@ pub struct LeftRecursive {
     pub parser: &'static str,
     pub seed: Box<dyn Any>,
     // TODO: This should be more like an owning ref
-    pub head: Option<Rc<RecursionHead>>,
+    pub head: Option<Rc<RefCell<RecursionHead>>>,
 }
 
 impl LeftRecursive {
@@ -37,6 +38,7 @@ impl LeftRecursive {
     }
 
     pub fn parse_result<I, T>(&self) -> Option<&ParseResult<I, T>> where I : 'static, T : 'static {
+        assert!(self.seed.is::<ParseResult<I, T>>());
         self.seed.downcast_ref::<ParseResult<I, T>>()
     }
 }
@@ -45,7 +47,7 @@ impl LeftRecursive {
 
 pub struct CallHeadTable {
     // TODO: This should be more like a weak ref
-    heads: HashMap<usize, Rc<RecursionHead>>,
+    heads: HashMap<usize, Rc<RefCell<RecursionHead>>>,
 }
 
 impl CallHeadTable {
@@ -53,15 +55,15 @@ impl CallHeadTable {
         Self{ heads: HashMap::new() }
     }
 
-    pub fn get(&self, idx: &usize) -> Option<&Rc<RecursionHead>> {
+    pub fn get(&self, idx: &usize) -> Option<&Rc<RefCell<RecursionHead>>> {
         self.heads.get(&idx)
     }
 
-    pub fn get_mut(&mut self, idx: &usize) -> Option<&mut Rc<RecursionHead>> {
+    pub fn get_mut(&mut self, idx: &usize) -> Option<&mut Rc<RefCell<RecursionHead>>> {
         self.heads.get_mut(&idx)
     }
 
-    pub fn insert(&mut self, idx: usize, h: Rc<RecursionHead>) {
+    pub fn insert(&mut self, idx: usize, h: Rc<RefCell<RecursionHead>>) {
         self.heads.insert(idx, h);
     }
 
@@ -73,7 +75,7 @@ impl CallHeadTable {
 // Call stack
 
 pub struct CallStack {
-    stack: Vec<Rc<LeftRecursive>>,
+    stack: Vec<Rc<RefCell<LeftRecursive>>>,
 }
 
 impl CallStack {
@@ -81,7 +83,7 @@ impl CallStack {
         Self{ stack: Vec::new() }
     }
 
-    pub fn push(&mut self, element: Rc<LeftRecursive>) {
+    pub fn push(&mut self, element: Rc<RefCell<LeftRecursive>>) {
         self.stack.push(element);
     }
 
@@ -107,7 +109,7 @@ impl CallStack {
 
 #[derive(Clone)]
 pub enum Entry<I, T> {
-    LeftRecursive(Rc<LeftRecursive>),
+    LeftRecursive(Rc<RefCell<LeftRecursive>>),
     ParseResult(ParseResult<I, T>),
 }
 
