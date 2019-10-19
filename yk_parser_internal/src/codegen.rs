@@ -279,7 +279,52 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 -> ParseResult<I, #ret_ty>
                 where #where_clause {
 
-                unimplemented!();
+                assert!(growable.head.is_some());
+
+                let seed = growable.parse_result().unwrap().clone();
+                let head_rc = growable.head.as_mut().unwrap();
+
+                {
+                    let head = Rc::get_mut(head_rc).unwrap();
+                    if head.head != #name {
+                        return seed;
+                    }
+                }
+
+                let s = insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(seed)).parse_result().clone();
+                if s.is_err() {
+                    return s;
+                }
+                else {
+                    return #grow_fname(memo, src, idx, s, head_rc);
+                }
+            }
+
+            fn #grow_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
+                old: ParseResult<I, #ret_ty>, h: &mut Rc<irec::RecursionHead>)
+                -> ParseResult<I, #ret_ty>
+                where #where_clause {
+
+                let curr_rule = #name;
+
+                memo.call_heads.insert(idx, h.clone());
+                Rc::get_mut(h).unwrap().eval = h.involved.clone();
+
+                let tmp_res = { #code };
+                // TODO: Oof, unnecessary cloning
+                if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
+                    // Successfully grew the seed
+                    let new_old = insert_and_get(
+                        &mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result().clone();
+                    return #grow_fname(memo, src, idx, new_old, h);
+                }
+
+                // We need to overwrite max-furthest in the memo-table!
+                // That's why we don't simply return old_res
+                memo.call_heads.remove(&idx);
+                let updated = ParseResult::unify_alternatives(tmp_res, old);
+                return insert_and_get(
+                    &mut #memo_entry, idx, irec::Entry::ParseResult(updated)).parse_result().clone();
             }
         }},
     };

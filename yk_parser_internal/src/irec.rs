@@ -61,6 +61,10 @@ impl CallHeadTable {
         self.heads.get_mut(&idx)
     }
 
+    pub fn insert(&mut self, idx: usize, h: Rc<RecursionHead>) {
+        self.heads.insert(idx, h);
+    }
+
     pub fn remove(&mut self, idx: &usize) {
         self.heads.remove(&idx);
     }
