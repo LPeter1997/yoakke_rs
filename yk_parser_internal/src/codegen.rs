@@ -205,7 +205,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 },
 
                 Some(irec::Entry::LeftRecursive(lr)) => {
-                    memo.call_stack.setup_lr(#name, lr.borrow_mut());
+                    memo.call_stack.setup_lr(#name, &lr);
                     lr.borrow().parse_result()
                 },
 
@@ -286,14 +286,14 @@ fn generate_code_rule(rs: &bnf::RuleSet,
 
                 println!("lr_answer_{}()", #name);
 
-                let growable = (*growable).borrow();
+                //let growable = (*growable).borrow();
 
-                assert!(growable.head.is_some());
+                assert!((*growable).borrow().head.is_some());
 
-                let seed = growable.parse_result();
-                let head = growable.head.as_ref().unwrap();
+                let seed = (*growable).borrow().parse_result();
+                //let head = (*growable).borrow().head.as_ref().unwrap();
 
-                if head.borrow().head != #name {
+                if (*growable).borrow().head.as_ref().unwrap().borrow().head != #name {
                     return seed;
                 }
 
@@ -302,7 +302,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     return s;
                 }
                 else {
-                    return #grow_fname(memo, src, idx, s, head);
+                    return #grow_fname(memo, src, idx, s, (*growable).borrow().head.as_ref().unwrap());
                 }
             }
 
@@ -316,7 +316,8 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 let curr_rule = #name;
 
                 memo.call_heads.insert(idx, h.clone());
-                h.borrow_mut().eval = (*h).borrow().involved.clone();
+                let involved_clone = (*h).borrow().involved.clone();
+                h.borrow_mut().eval = involved_clone;
 
                 let tmp_res = { #code };
                 // TODO: Oof, unnecessary cloning

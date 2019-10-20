@@ -87,17 +87,18 @@ impl CallStack {
         self.stack.pop();
     }
 
-    pub fn setup_lr(&mut self, parser: &'static str, mut rec: RefMut<'_, LeftRecursive>) {
-        if rec.head.is_none() {
-            rec.head = Some(Rc::new(RefCell::new(RecursionHead::with_head(parser))));
+    pub fn setup_lr(&mut self, parser: &'static str, rec: &Rc<RefCell<LeftRecursive>>) {
+        println!("setup_lr_{}()", parser);
+
+        if (*rec).borrow().head.is_none() {
+            (*rec).borrow_mut().head = Some(Rc::new(RefCell::new(RecursionHead::with_head(parser))));
         }
-        let mut rec_head = rec.head.as_ref().unwrap().borrow_mut();
         for mut elem in self.stack.iter().rev().map(|x| x.borrow_mut()) {
             if elem.parser == parser {
                 break;
             }
-            elem.head = rec.head.clone();
-            rec_head.involved.insert(parser);
+            elem.head = (*rec).borrow().head.clone();
+            (*rec).borrow().head.as_ref().unwrap().borrow_mut().involved.insert(parser);
         }
     }
 }
