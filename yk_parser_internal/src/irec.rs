@@ -5,7 +5,7 @@
 use std::collections::{HashSet, HashMap};
 use std::rc::Rc;
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use crate::parse_result::ParseResult;
 
 // Recursion head
@@ -37,9 +37,9 @@ impl LeftRecursive {
         Self{ parser, seed: Box::new(seed), head: None }
     }
 
-    pub fn parse_result<I, T>(&self) -> Option<&ParseResult<I, T>> where I : 'static, T : 'static {
+    pub fn parse_result<I, T>(&self) -> ParseResult<I, T> where I : 'static + Clone, T : 'static + Clone {
         assert!(self.seed.is::<ParseResult<I, T>>());
-        self.seed.downcast_ref::<ParseResult<I, T>>()
+        (*self.seed.downcast_ref::<ParseResult<I, T>>().unwrap()).clone()
     }
 }
 
@@ -57,10 +57,6 @@ impl CallHeadTable {
 
     pub fn get(&self, idx: &usize) -> Option<&Rc<RefCell<RecursionHead>>> {
         self.heads.get(&idx)
-    }
-
-    pub fn get_mut(&mut self, idx: &usize) -> Option<&mut Rc<RefCell<RecursionHead>>> {
-        self.heads.get_mut(&idx)
     }
 
     pub fn insert(&mut self, idx: usize, h: Rc<RefCell<RecursionHead>>) {
@@ -91,16 +87,17 @@ impl CallStack {
         self.stack.pop();
     }
 
-    pub fn setup_lr(&mut self, parser: &'static str, rec: &mut LeftRecursive) {
+    pub fn setup_lr(&mut self, parser: &'static str, mut rec: RefMut<'_, LeftRecursive>) {
         if rec.head.is_none() {
-            rec.head = Some(Rc::new(RecursionHead::with_head(parser)));
+            rec.head = Some(Rc::new(RefCell::new(RecursionHead::with_head(parser))));
         }
-        for elem in &mut self.stack.iter_mut().rev() {
+        let mut rec_head = rec.head.as_ref().unwrap().borrow_mut();
+        for mut elem in self.stack.iter().rev().map(|x| x.borrow_mut()) {
             if elem.parser == parser {
                 break;
             }
-            Rc::get_mut(elem).unwrap().head = rec.head.clone();
-            Rc::get_mut(rec.head.as_mut().unwrap()).unwrap().involved.insert(parser);
+            elem.head = rec.head.clone();
+            rec_head.involved.insert(parser);
         }
     }
 }
@@ -114,10 +111,10 @@ pub enum Entry<I, T> {
 }
 
 impl <I, T> Entry<I, T> where I : Clone, T : Clone {
-    pub fn parse_result(&self) -> &ParseResult<I, T> where I: 'static, T: 'static {
+    pub fn parse_result(&self) -> ParseResult<I, T> where I: 'static, T: 'static {
         match self {
-            Entry::LeftRecursive(lr) => lr.parse_result().unwrap(),
-            Entry::ParseResult(r) => r,
+            Entry::LeftRecursive(lr) => (**lr).borrow().parse_result(),
+            Entry::ParseResult(r) => r.clone(),
         }
     }
 }

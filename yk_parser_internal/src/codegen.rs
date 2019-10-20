@@ -44,7 +44,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             use ::std::hash::Hash;
             use ::std::boxed::Box;
             use ::std::rc::Rc;
-            use ::std::cell::RefCell;
+            use ::std::cell::{RefCell, RefMut};
             // TODO: Is this temporary
             use ::std::fmt::Display;
 
@@ -182,30 +182,31 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
+            println!("parse_{}()", #name);
+
             let m = #recall_fname(memo, src.clone(), idx); // Option<irec::Entry<I, T>>
 
             match m {
                 None => {
                     let mut base =
-                        Rc::new(irec::LeftRecursive::with_parser_and_seed::<I, #ret_ty>(#name, ParseErr::new().into()));
+                        Rc::new(RefCell::new(irec::LeftRecursive::with_parser_and_seed::<I, #ret_ty>(#name, ParseErr::new().into())));
                     memo.call_stack.push(base.clone());
                     #memo_entry.insert(idx, irec::Entry::LeftRecursive(base.clone()));
                     let tmp_res = { #code };
                     memo.call_stack.pop();
 
-                    if base.head.is_none() {
-                        insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result().clone()
+                    if base.borrow().head.is_none() {
+                        insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result()
                     }
                     else {
-                        Rc::get_mut(&mut base).unwrap().seed = Box::new(tmp_res);
-                        #lr_answer_fname(memo, src.clone(), idx, Rc::get_mut(&mut base).unwrap())
+                        base.borrow_mut().seed = Box::new(tmp_res);
+                        #lr_answer_fname(memo, src.clone(), idx, &base)
                     }
                 },
 
-                Some(irec::Entry::LeftRecursive(mut lr)) => {
-                    println!("Cnt: {}", Rc::strong_count(&lr));
-                    memo.call_stack.setup_lr(#name, Rc::get_mut(&mut lr).unwrap());
-                    lr.parse_result().unwrap().clone()
+                Some(irec::Entry::LeftRecursive(lr)) => {
+                    memo.call_stack.setup_lr(#name, lr.borrow_mut());
+                    lr.borrow().parse_result()
                 },
 
                 Some(irec::Entry::ParseResult(r)) => {
@@ -252,20 +253,22 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 -> Option<irec::Entry<I, #ret_ty>>
                 where #where_clause {
 
+                println!("recall_{}()", #name);
+
                 let curr_rule = #name;
 
                 let cached = #memo_entry.get(&idx);
-                let in_heads = memo.call_heads.get_mut(&idx);
+                let in_heads = memo.call_heads.get(&idx);
 
                 match (in_heads, cached) {
                     (None, None) => None,
                     (None, Some(c)) => Some((*c).clone()),
 
                     (Some(h), c) => {
-                        if c.is_none() && !(#name == h.head || h.involved.contains(#name)) {
+                        if c.is_none() && !(#name == h.borrow().head || h.borrow().involved.contains(#name)) {
                             Some(irec::Entry::ParseResult(ParseErr::new().into()))
                         }
-                        else if Rc::get_mut(h).unwrap().eval.remove(#name) {
+                        else if h.borrow_mut().eval.remove(#name) {
                             let tmp_res = { #code };
                             Some(insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).clone())
                         }
@@ -277,47 +280,50 @@ fn generate_code_rule(rs: &bnf::RuleSet,
             }
 
             fn #lr_answer_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
-                growable: &mut irec::LeftRecursive)
+                growable: &Rc<RefCell<irec::LeftRecursive>>)
                 -> ParseResult<I, #ret_ty>
                 where #where_clause {
 
+                println!("lr_answer_{}()", #name);
+
+                let growable = (*growable).borrow();
+
                 assert!(growable.head.is_some());
 
-                let seed = growable.parse_result().unwrap().clone();
-                let head_rc = growable.head.as_mut().unwrap();
+                let seed = growable.parse_result();
+                let head = growable.head.as_ref().unwrap();
 
-                {
-                    let head = Rc::get_mut(head_rc).unwrap();
-                    if head.head != #name {
-                        return seed;
-                    }
+                if head.borrow().head != #name {
+                    return seed;
                 }
 
-                let s = insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(seed)).parse_result().clone();
+                let s = insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(seed)).parse_result();
                 if s.is_err() {
                     return s;
                 }
                 else {
-                    return #grow_fname(memo, src, idx, s, head_rc);
+                    return #grow_fname(memo, src, idx, s, head);
                 }
             }
 
             fn #grow_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
-                old: ParseResult<I, #ret_ty>, h: &mut Rc<irec::RecursionHead>)
+                old: ParseResult<I, #ret_ty>, h: &Rc<RefCell<irec::RecursionHead>>)
                 -> ParseResult<I, #ret_ty>
                 where #where_clause {
+
+                println!("grow_{}()", #name);
 
                 let curr_rule = #name;
 
                 memo.call_heads.insert(idx, h.clone());
-                Rc::get_mut(h).unwrap().eval = h.involved.clone();
+                h.borrow_mut().eval = (*h).borrow().involved.clone();
 
                 let tmp_res = { #code };
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
                     // Successfully grew the seed
                     let new_old = insert_and_get(
-                        &mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result().clone();
+                        &mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result();
                     return #grow_fname(memo, src, idx, new_old, h);
                 }
 
@@ -326,7 +332,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 memo.call_heads.remove(&idx);
                 let updated = ParseResult::unify_alternatives(tmp_res, old);
                 return insert_and_get(
-                    &mut #memo_entry, idx, irec::Entry::ParseResult(updated)).parse_result().clone();
+                    &mut #memo_entry, idx, irec::Entry::ParseResult(updated)).parse_result();
             }
         }},
     };
