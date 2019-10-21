@@ -61,8 +61,10 @@ fn main() {
 
     let r = parser::parse_ones(&mut parser::MemoContext::new(), src.chars(), 0);
     if r.is_ok() {
-        let val = r.ok().unwrap().value;
-        println!("Ok: {:?}", val);
+        let ok = r.ok().unwrap();
+        let val = ok.value;
+        let mlen = ok.matched;
+        println!("Ok: {:?} (matched: {})", val, mlen);
     }
     else {
         let err = r.err().unwrap();

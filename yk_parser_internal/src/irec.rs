@@ -88,8 +88,6 @@ impl CallStack {
     }
 
     pub fn setup_lr(&mut self, parser: &'static str, rec: &Rc<RefCell<LeftRecursive>>) {
-        println!("setup_lr_{}()", parser);
-
         if (*rec).borrow().head.is_none() {
             (*rec).borrow_mut().head = Some(Rc::new(RefCell::new(RecursionHead::with_head(parser))));
         }

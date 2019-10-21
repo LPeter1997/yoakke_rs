@@ -182,8 +182,6 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
-            println!("parse_{}()", #name);
-
             let m = #recall_fname(memo, src.clone(), idx); // Option<irec::Entry<I, T>>
 
             match m {
@@ -253,8 +251,6 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 -> Option<irec::Entry<I, #ret_ty>>
                 where #where_clause {
 
-                println!("recall_{}()", #name);
-
                 let curr_rule = #name;
 
                 let cached = #memo_entry.get(&idx);
@@ -284,14 +280,9 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 -> ParseResult<I, #ret_ty>
                 where #where_clause {
 
-                println!("lr_answer_{}()", #name);
-
-                //let growable = (*growable).borrow();
-
                 assert!((*growable).borrow().head.is_some());
 
                 let seed = (*growable).borrow().parse_result();
-                //let head = (*growable).borrow().head.as_ref().unwrap();
 
                 if (*growable).borrow().head.as_ref().unwrap().borrow().head != #name {
                     return seed;
@@ -310,8 +301,6 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 old: ParseResult<I, #ret_ty>, h: &Rc<RefCell<irec::RecursionHead>>)
                 -> ParseResult<I, #ret_ty>
                 where #where_clause {
-
-                println!("grow_{}()", #name);
 
                 let curr_rule = #name;
 
