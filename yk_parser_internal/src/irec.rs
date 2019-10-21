@@ -96,7 +96,7 @@ impl CallStack {
                 break;
             }
             elem.head = (*rec).borrow().head.clone();
-            (*rec).borrow().head.as_ref().unwrap().borrow_mut().involved.insert(parser);
+            (*rec).borrow().head.as_ref().unwrap().borrow_mut().involved.insert(elem.parser);
         }
     }
 }
