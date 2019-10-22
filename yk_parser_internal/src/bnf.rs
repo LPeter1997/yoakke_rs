@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use syn::{Result, Token, Expr, Block, Ident, Lit, Path};
 use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
-use crate::syn_extensions::parse_parenthesized_fn;
+use crate::syn_extensions::{parse_parenthesized_fn, parse_ident};
 
 #[derive(Clone)]
 pub struct RuleSet {
@@ -131,18 +131,12 @@ struct GrammarName {
 
 impl Parse for GrammarName {
     fn parse(input: ParseStream) -> Result<Self> {
-        let name_tok: Ident = input.parse()?;
-        if name_tok.to_string() != "Name" {
-            Err(syn::Error::new(proc_macro2::Span::call_site(), "Expected 'Name'!"))
-        }
-        else {
-            Ok(GrammarName{
-                name_tok,
-                eq: input.parse()?,
-                name: input.parse()?,
-                semicol: input.parse()?,
-            })
-        }
+        Ok(GrammarName{
+            name_tok: parse_ident(input, "Name")?,
+            eq: input.parse()?,
+            name: input.parse()?,
+            semicol: input.parse()?,
+        })
     }
 }
 
