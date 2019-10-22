@@ -10,6 +10,7 @@ use crate::syn_extensions::parse_parenthesized_fn;
 
 #[derive(Clone)]
 pub struct RuleSet {
+    pub grammar_name: String,
     pub top_rule: (String, Node),
     pub rules: HashMap<String, Node>,
     pub literal_matcher: (),
@@ -118,6 +119,34 @@ impl RuleSet {
 // Parse ///////////////////////////////////////////////////////////////////////
 
 /**
+ * Name = FooBar;
+ */
+
+struct GrammarName {
+    name_tok: Ident,
+    eq: Token![:],
+    name: Ident,
+    semicol: Token![;],
+}
+
+impl Parse for GrammarName {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let name_tok: Ident = input.parse()?;
+        if name_tok.to_string() != "Name" {
+            Err(syn::Error::new(proc_macro2::Span::call_site(), "Expected 'Name'!"))
+        }
+        else {
+            Ok(GrammarName{
+                name_tok,
+                eq: input.parse()?,
+                name: input.parse()?,
+                semicol: input.parse()?,
+            })
+        }
+    }
+}
+
+/**
  * The allowed syntax is:
  *
  * expr ::= foo bar baz { construct(x0, x1, x2) }
@@ -134,16 +163,24 @@ struct Rule {
 
 impl Parse for RuleSet {
     fn parse(input: ParseStream) -> Result<Self> {
+        let gname: GrammarName = input.parse()?;
         let nnp = input.parse_terminated::<Rule, Token![;]>(Rule::parse)?;
         let mut rules = HashMap::new();
         let mut top_rule = None;
+
         for (k, v) in nnp.iter().map(|x| (x.ident.to_string(), x.node.clone())) {
             if top_rule.is_none() {
                 top_rule = Some((k.clone(), v.clone()));
             }
             rules.insert(k, v);
         }
-        Ok(RuleSet{ top_rule: top_rule.unwrap(), rules, literal_matcher: (), })
+
+        Ok(RuleSet{
+            grammar_name: gname.name.to_string(),
+            top_rule: top_rule.unwrap(),
+            rules,
+            literal_matcher: (),
+        })
     }
 }
 

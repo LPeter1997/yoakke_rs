@@ -46,14 +46,16 @@ enum TokTy {
 }
 
 yk_parser!{
-    ones ::=
-        | ones_impl
-        ;
+Name: MyParser;
 
-    ones_impl ::=
-        | ones '1' { e0 + 1 }
-        | '1' { 1 }
-        ;
+ones ::=
+    | ones_impl
+    ;
+
+ones_impl ::=
+    | ones '1' { e0 + 1 }
+    | '1' { 1 }
+    ;
 }
 
 fn main() {
