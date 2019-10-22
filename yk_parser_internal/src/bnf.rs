@@ -3,14 +3,15 @@
  */
 
 use std::collections::{HashMap, HashSet};
-use syn::{Result, Token, Expr, Block, Ident, Lit, Path};
+use syn::{Result, Token, Expr, Block, Ident, Lit, Path, Type};
 use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
-use crate::syn_extensions::{parse_parenthesized_fn, parse_ident};
+use crate::syn_extensions::{parse_parenthesized_fn, parse_bracketed_fn, parse_ident};
 
 #[derive(Clone)]
 pub struct RuleSet {
     pub grammar_name: String,
+    pub default_type: Option<Type>,
     pub top_rule: (String, Node),
     pub rules: HashMap<String, Node>,
     pub literal_matcher: (),
@@ -119,7 +120,7 @@ impl RuleSet {
 // Parse ///////////////////////////////////////////////////////////////////////
 
 /**
- * Name = FooBar;
+ * name: FooBar;
  */
 
 struct GrammarName {
@@ -132,13 +133,36 @@ struct GrammarName {
 impl Parse for GrammarName {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(GrammarName{
-            name_tok: parse_ident(input, "Name")?,
+            name_tok: parse_ident(input, "name")?,
             eq: input.parse()?,
             name: input.parse()?,
             semicol: input.parse()?,
         })
     }
 }
+
+/**
+ * type: i32;
+ */
+
+struct GrammarDefaultType {
+    ty_tok: Token![type],
+    eq: Token![:],
+    ty: Type,
+    semicol: Token![;],
+}
+
+impl Parse for GrammarDefaultType {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(GrammarDefaultType{
+            ty_tok: input.parse()?,
+            eq: input.parse()?,
+            ty: input.parse()?,
+            semicol: input.parse()?,
+        })
+    }
+}
+
 
 /**
  * The allowed syntax is:
@@ -150,6 +174,7 @@ impl Parse for GrammarName {
 
 struct Rule {
     ident: Ident,
+    ty: Option<Type>,
     col: Token![::],
     eq: Token![=],
     node: Node,
@@ -158,6 +183,7 @@ struct Rule {
 impl Parse for RuleSet {
     fn parse(input: ParseStream) -> Result<Self> {
         let gname: GrammarName = input.parse()?;
+        let defty = input.parse::<GrammarDefaultType>().ok().map(|gdt| gdt.ty);
         let nnp = input.parse_terminated::<Rule, Token![;]>(Rule::parse)?;
         let mut rules = HashMap::new();
         let mut top_rule = None;
@@ -171,6 +197,7 @@ impl Parse for RuleSet {
 
         Ok(RuleSet{
             grammar_name: gname.name.to_string(),
+            default_type: defty,
             top_rule: top_rule.unwrap(),
             rules,
             literal_matcher: (),
@@ -182,6 +209,7 @@ impl Parse for Rule {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Rule{
             ident: input.parse()?,
+            ty: parse_bracketed_fn(input, |input| input.parse::<Type>()).ok().map(|t| t.1),
             col: input.parse()?,
             eq: input.parse()?,
             node: input.parse()?,

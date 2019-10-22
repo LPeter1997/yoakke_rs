@@ -46,7 +46,8 @@ enum TokTy {
 }
 
 yk_parser!{
-Name: MyParser;
+name: MyParser;
+type: i32;
 
 ones ::=
     | ones_impl
