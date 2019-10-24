@@ -10,7 +10,7 @@ use crate::syn_extensions::{parse_parenthesized_fn, parse_bracketed_fn, parse_id
 
 #[derive(Clone)]
 pub struct RuleSet {
-    pub grammar_name: String,
+    //pub grammar_name: String,
     pub item_type: Type,
     pub default_type: Option<Type>,
     pub top_rule: (String, Node),
@@ -124,6 +124,7 @@ impl RuleSet {
  * name: FooBar;
  */
 
+/*
 struct GrammarName {
     name_tok: Ident,
     eq: Token![:],
@@ -141,6 +142,7 @@ impl Parse for GrammarName {
         })
     }
 }
+*/
 
 /**
  * item: char;
@@ -203,7 +205,7 @@ struct Rule {
 
 impl Parse for RuleSet {
     fn parse(input: ParseStream) -> Result<Self> {
-        let gname: GrammarName = input.parse()?;
+        //let gname: GrammarName = input.parse()?;
         let itype: GrammarItemType = input.parse()?;
         let defty = input.parse::<GrammarDefaultType>().ok().map(|gdt| gdt.ty);
         let nnp = input.parse_terminated::<Rule, Token![;]>(Rule::parse)?;
@@ -230,7 +232,7 @@ impl Parse for RuleSet {
         }
 
         Ok(RuleSet{
-            grammar_name: gname.name.to_string(),
+            //grammar_name: gname.name.to_string(),
             item_type: itype.ty,
             default_type: defty,
             top_rule: top_rule.unwrap(),

@@ -77,11 +77,13 @@ impl <'a, T> Iterator for Iter<'a, T> where T : TokenType {
                         }
                         else {
                             self.already_ended = true;
-                            return Some(Token{ range, kind, position, lookahead });
+                            let value = self.source[range.clone()].into();
+                            return Some(Token{ range, kind, position, lookahead, value });
                         }
                     }
                     else {
-                        return Some(Token{ range, kind, position, lookahead });
+                        let value = self.source[range.clone()].into();
+                        return Some(Token{ range, kind, position, lookahead, value });
                     }
                 },
 

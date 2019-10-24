@@ -25,8 +25,8 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let mut memo_ctor = Vec::new();
 
     // Identifier for type
-    let memo_ctx = quote::format_ident!("{}", rules.grammar_name);
-    let memo_ctx_mod = quote::format_ident!("{}_impl_mod", rules.grammar_name);
+    //let memo_ctx = quote::format_ident!("{}", rules.grammar_name);
+    // memo_ctx_mod = quote::format_ident!("{}_impl_mod", rules.grammar_name);
 
     for (name, (node, node_ty)) in &rules.rules {
         let GeneratedRule{ parser_fn, memo_id, memo_ty } = generate_code_rule(rules, node_ty, name, node);
@@ -40,8 +40,8 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let item_type = &rules.item_type;
 
     quote!{
-        mod #memo_ctx_mod {
-            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Parser, Match};
+        //mod #memo_ctx_mod {
+            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Match, ShowExpected, ShowFound};
             use ::std::string::String;
             use ::std::option::Option;
             use ::std::collections::HashMap;
@@ -52,20 +52,18 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             use ::std::boxed::Box;
             use ::std::rc::Rc;
             use ::std::cell::{RefCell, RefMut};
-            // TODO: Is this temporary?
-            use ::std::fmt::Display;
 
-            pub struct #memo_ctx<I> {
+            pub struct Parser<I> {
                 call_stack: irec::CallStack,
                 call_heads: irec::CallHeadTable,
                 #(#memo_members),*
             }
 
-            impl <I> Parser for #memo_ctx<I> where I : Iterator<Item = #item_type> {
+            impl <I> ::yk_parser::Parser for Parser<I> where I : Iterator<Item = #item_type> {
                 type Item = #item_type;
             }
 
-            impl <I> #memo_ctx<I> where I : Iterator<Item = #item_type> {
+            impl <I> Parser<I> where I : Iterator<Item = #item_type> {
                 pub fn new() -> Self {
                     Self{
                         call_stack: irec::CallStack::new(),
@@ -83,9 +81,9 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                 m.insert(k.clone(), v);
                 m.get(&k).unwrap()
             }
-        }
+        //}
 
-        use #memo_ctx_mod::#memo_ctx;
+        //use #memo_ctx_mod::#memo_ctx;
     }
 }
 
@@ -103,16 +101,11 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
     // have this where clause
     let where_clause = quote!{
         I : Iterator + Clone,
-        <I as Iterator>::Item :
-            // TODO: Collect what we compare with!
-              PartialEq<char>
 
-            + Display,
-
-            // TODO: Do we need this everywhere?
-            // Can we at least get rid of the iterator?
-            I : 'static,
-            #ret_ty : 'static
+        // TODO: Do we need this everywhere?
+        // Can we at least get rid of the iterator?
+        I : 'static,
+        #ret_ty : 'static
     };
 
     // Identifiers for this parser
@@ -122,7 +115,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
     let recall_fname = quote::format_ident!("recall_{}", name);
     let lr_answer_fname = quote::format_ident!("lr_answer_{}", name);
     let memo_id = quote::format_ident!("memo_{}", name);
-    let memo_ctx = quote::format_ident!("{}", rs.grammar_name);
+    //let memo_ctx = quote::format_ident!("{}", rs.grammar_name);
 
     // How to reference the memo table's current entry
     let memo_entry = quote!{ self.#memo_id };
@@ -483,7 +476,6 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
 }
 
 fn generate_code_atom(counter: usize, tok: TokenStream) -> (TokenStream, usize) {
-    let lit_str = format!("{}", tok);
     let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
@@ -491,12 +483,12 @@ fn generate_code_atom(counter: usize, tok: TokenStream) -> (TokenStream, usize) 
                 ParseOk{ matched: idx + 1, furthest_it: src2, furthest_error: None, value: (v) }.into()
             }
             else {
-                let got = format!("{}", v);
-                ParseErr::single(idx, got, curr_rule, #lit_str.into()).into()
+                let got = Self::show_found(&v);
+                ParseErr::single(idx, got, curr_rule, Self::show_expected(&#tok)).into()
             }
         }
         else {
-            ParseErr::single(idx, "end of input".into(), curr_rule, #lit_str.into()).into()
+            ParseErr::single(idx, "end of input".into(), curr_rule, Self::show_expected(&#tok)).into()
         }
     }};
     (code, counter + 1)

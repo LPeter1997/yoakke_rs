@@ -14,6 +14,9 @@ pub struct Token<T> {
     pub kind: T,
     pub position: Position,
     pub lookahead: usize,
+
+    // TODO: Possibly temporary
+    pub value: String,
 }
 
 impl <T> Token<T> {

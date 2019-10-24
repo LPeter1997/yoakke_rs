@@ -9,3 +9,11 @@ pub trait Parser {
 pub trait Match<T> where Self : Parser {
     fn matches(a: &<Self as Parser>::Item, b: &T) -> bool;
 }
+
+pub trait ShowExpected<T> where Self : Parser {
+    fn show_expected(item: &T) -> String;
+}
+
+pub trait ShowFound where Self : Parser {
+    fn show_found(item: &<Self as Parser>::Item) -> String;
+}
