@@ -13,7 +13,7 @@ pub struct RuleSet {
     pub grammar_name: String,
     pub default_type: Option<Type>,
     pub top_rule: (String, Node),
-    pub rules: HashMap<String, Node>,
+    pub rules: HashMap<String, (Node, Type)>,
     pub literal_matcher: (),
 }
 
@@ -90,7 +90,7 @@ impl RuleSet {
                             }
                             else {
                                 // Check if it's a rule
-                                if let Some(sr) = rules.rules.get(&ident) {
+                                if let Some((sr, _)) = rules.rules.get(&ident) {
                                     touched.insert(ident);
                                     Self::left_recursion_impl(sr, rule, rules, false, touched)
                                 }
@@ -111,7 +111,7 @@ impl RuleSet {
 
     pub fn left_recursion(&self, rule: &str) -> LeftRecursion {
         match self.rules.get(rule) {
-            Some(n) => Self::left_recursion_impl(n, rule, self, true, &mut HashSet::new()),
+            Some((n, _)) => Self::left_recursion_impl(n, rule, self, true, &mut HashSet::new()),
             None => LeftRecursion::None,
         }
     }
@@ -188,11 +188,23 @@ impl Parse for RuleSet {
         let mut rules = HashMap::new();
         let mut top_rule = None;
 
-        for (k, v) in nnp.iter().map(|x| (x.ident.to_string(), x.node.clone())) {
-            if top_rule.is_none() {
-                top_rule = Some((k.clone(), v.clone()));
+        for (k, vr) in nnp.iter().map(|x| (x.ident.to_string(), x)) {
+            let ty = if vr.ty.is_some() {
+                vr.ty.clone().unwrap()
             }
-            rules.insert(k, v);
+            else if defty.is_some() {
+                defty.clone().unwrap()
+            }
+            else {
+                panic!("No type for rule '{}'!", k);
+            };
+
+            let to_insert = (vr.node.clone(), ty);
+
+            if top_rule.is_none() {
+                top_rule = Some((k.clone(), to_insert.0.clone()));
+            }
+            rules.insert(k, to_insert);
         }
 
         Ok(RuleSet{

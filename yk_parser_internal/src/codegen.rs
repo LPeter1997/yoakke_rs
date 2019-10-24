@@ -5,7 +5,7 @@
 use std::time::SystemTime;
 use proc_macro2::TokenStream;
 use quote::{quote, format_ident, ToTokens};
-use syn::{Ident, Block, Lit, Path};
+use syn::{Ident, Block, Lit, Path, Type};
 use crate::bnf;
 use crate::parse_result::*;
 
@@ -28,7 +28,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let memo_ctx = quote::format_ident!("{}", rules.grammar_name);
     let memo_ctx_mod = quote::format_ident!("{}_impl_mod", rules.grammar_name);
 
-    for (name, node) in &rules.rules {
+    for (name, (node, node_ty)) in &rules.rules {
         let GeneratedRule{ parser_fn, memo_id, memo_ty } = generate_code_rule(rules, name, node);
 
         parser_fns.push(parser_fn);
