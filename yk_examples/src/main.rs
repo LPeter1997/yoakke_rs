@@ -62,7 +62,8 @@ ones_impl ::=
 fn main() {
     let src = "1111";
 
-    let r = parser::parse_ones(&mut parser::MemoContext::new(), src.chars(), 0);
+    let mut parser = MyParser::new();
+    let r = parser.parse_ones(src.chars(), 0);
     if r.is_ok() {
         let ok = r.ok().unwrap();
         let val = ok.value;

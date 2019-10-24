@@ -2,6 +2,7 @@
  * Code generation from the BNF AST.
  */
 
+use std::time::SystemTime;
 use proc_macro2::TokenStream;
 use quote::{quote, format_ident, ToTokens};
 use syn::{Ident, Block, Lit, Path};
@@ -23,6 +24,10 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let mut memo_members = Vec::new();
     let mut memo_ctor = Vec::new();
 
+    // Identifier for type
+    let memo_ctx = quote::format_ident!("{}", rules.grammar_name);
+    let memo_ctx_mod = quote::format_ident!("{}_impl_mod", rules.grammar_name);
+
     for (name, node) in &rules.rules {
         let GeneratedRule{ parser_fn, memo_id, memo_ty } = generate_code_rule(rules, name, node);
 
@@ -33,7 +38,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     }
 
     quote!{
-        mod parser {
+        mod #memo_ctx_mod {
             use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr};
             use ::std::string::String;
             use ::std::option::Option;
@@ -45,16 +50,16 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             use ::std::boxed::Box;
             use ::std::rc::Rc;
             use ::std::cell::{RefCell, RefMut};
-            // TODO: Is this temporary
+            // TODO: Is this temporary?
             use ::std::fmt::Display;
 
-            pub struct MemoContext<I> {
+            pub struct #memo_ctx<I> {
                 call_stack: irec::CallStack,
                 call_heads: irec::CallHeadTable,
                 #(#memo_members),*
             }
 
-            impl <I> MemoContext<I> {
+            impl <I> #memo_ctx<I> {
                 pub fn new() -> Self {
                     Self{
                         call_stack: irec::CallStack::new(),
@@ -62,6 +67,8 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                         #(#memo_ctor),*
                     }
                 }
+
+                #(#parser_fns)*
             }
 
             // TODO: Probably something better?
@@ -70,9 +77,9 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                 m.insert(k.clone(), v);
                 m.get(&k).unwrap()
             }
-
-            #(#parser_fns)*
         }
+
+        use #memo_ctx_mod::#memo_ctx;
     }
 }
 
@@ -108,9 +115,10 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let recall_fname = quote::format_ident!("recall_{}", name);
     let lr_answer_fname = quote::format_ident!("lr_answer_{}", name);
     let memo_id = quote::format_ident!("memo_{}", name);
+    let memo_ctx = quote::format_ident!("{}", rs.grammar_name);
 
     // How to reference the memo table's current entry
-    let memo_entry = quote!{ memo.#memo_id };
+    let memo_entry = quote!{ self.#memo_id };
 
     let rec = rs.left_recursion(name);
     let memo_ty = match rec {
@@ -154,7 +162,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                             // We are in recursion!
                             let old = insert_and_get(
                                 &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_res)).parse_result().clone();
-                            #grow_fname(memo, src.clone(), idx, old)
+                            self.#grow_fname(src.clone(), idx, old)
                         },
 
                         drec::DirectRec::Base(_) => {
@@ -182,28 +190,28 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
-            let m = #recall_fname(memo, src.clone(), idx); // Option<irec::Entry<I, T>>
+            let m = self.#recall_fname(src.clone(), idx); // Option<irec::Entry<I, T>>
 
             match m {
                 None => {
                     let mut base =
                         Rc::new(RefCell::new(irec::LeftRecursive::with_parser_and_seed::<I, #ret_ty>(#name, ParseErr::new().into())));
-                    memo.call_stack.push(base.clone());
+                    self.call_stack.push(base.clone());
                     #memo_entry.insert(idx, irec::Entry::LeftRecursive(base.clone()));
                     let tmp_res = { #code };
-                    memo.call_stack.pop();
+                    self.call_stack.pop();
 
                     if base.borrow().head.is_none() {
                         insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result()
                     }
                     else {
                         base.borrow_mut().seed = Box::new(tmp_res);
-                        #lr_answer_fname(memo, src.clone(), idx, &base)
+                        self.#lr_answer_fname(src.clone(), idx, &base)
                     }
                 },
 
                 Some(irec::Entry::LeftRecursive(lr)) => {
-                    memo.call_stack.setup_lr(#name, &lr);
+                    self.call_stack.setup_lr(#name, &lr);
                     lr.borrow().parse_result()
                 },
 
@@ -219,7 +227,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         bnf::LeftRecursion::None => quote!{},
 
         bnf::LeftRecursion::Direct => {quote!{
-            fn #grow_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
+            fn #grow_fname(&mut self, src: I, idx: usize,
                 old: ParseResult<I, #ret_ty>) -> ParseResult<I, #ret_ty>
                 where #where_clause {
 
@@ -235,7 +243,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     // Successfully grew the seed
                     let new_old = insert_and_get(
                         &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_res)).parse_result().clone();
-                    return #grow_fname(memo, src, idx, new_old);
+                    return self.#grow_fname(src, idx, new_old);
                 }
 
                 // We need to overwrite max-furthest in the memo-table!
@@ -247,14 +255,14 @@ fn generate_code_rule(rs: &bnf::RuleSet,
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
-            fn #recall_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize)
+            fn #recall_fname(&mut self, src: I, idx: usize)
                 -> Option<irec::Entry<I, #ret_ty>>
                 where #where_clause {
 
                 let curr_rule = #name;
 
                 let cached = #memo_entry.get(&idx);
-                let in_heads = memo.call_heads.get(&idx);
+                let in_heads = self.call_heads.get(&idx);
 
                 match (in_heads, cached) {
                     (None, None) => None,
@@ -275,7 +283,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                 }
             }
 
-            fn #lr_answer_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
+            fn #lr_answer_fname(&mut self, src: I, idx: usize,
                 growable: &Rc<RefCell<irec::LeftRecursive>>)
                 -> ParseResult<I, #ret_ty>
                 where #where_clause {
@@ -293,18 +301,18 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     return s;
                 }
                 else {
-                    return #grow_fname(memo, src, idx, s, (*growable).borrow().head.as_ref().unwrap());
+                    return self.#grow_fname(src, idx, s, (*growable).borrow().head.as_ref().unwrap());
                 }
             }
 
-            fn #grow_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize,
+            fn #grow_fname(&mut self, src: I, idx: usize,
                 old: ParseResult<I, #ret_ty>, h: &Rc<RefCell<irec::RecursionHead>>)
                 -> ParseResult<I, #ret_ty>
                 where #where_clause {
 
                 let curr_rule = #name;
 
-                memo.call_heads.insert(idx, h.clone());
+                self.call_heads.insert(idx, h.clone());
                 let involved_clone = (*h).borrow().involved.clone();
                 h.borrow_mut().eval = involved_clone;
 
@@ -314,12 +322,12 @@ fn generate_code_rule(rs: &bnf::RuleSet,
                     // Successfully grew the seed
                     let new_old = insert_and_get(
                         &mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result();
-                    return #grow_fname(memo, src, idx, new_old, h);
+                    return self.#grow_fname(src, idx, new_old, h);
                 }
 
                 // We need to overwrite max-furthest in the memo-table!
                 // That's why we don't simply return old_res
-                memo.call_heads.remove(&idx);
+                self.call_heads.remove(&idx);
                 let updated = ParseResult::unify_alternatives(tmp_res, old);
                 return insert_and_get(
                     &mut #memo_entry, idx, irec::Entry::ParseResult(updated)).parse_result();
@@ -330,7 +338,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let parser_fn = quote!{
         #grow_code
 
-        pub fn #parse_fname<I>(memo: &mut MemoContext<I>, src: I, idx: usize) ->
+        pub fn #parse_fname(&mut self, src: I, idx: usize) ->
             ParseResult<I, #ret_ty>
             where #where_clause {
 
@@ -455,7 +463,7 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
         if rs.rules.contains_key(&id) {
             let fname = quote::format_ident!("parse_{}", id);
             let code = quote!{
-                #fname(memo, src.clone(), idx)
+                self.#fname(src.clone(), idx)
             };
             return (code, counter + 1);
         }
