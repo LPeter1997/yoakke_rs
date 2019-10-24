@@ -29,7 +29,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let memo_ctx_mod = quote::format_ident!("{}_impl_mod", rules.grammar_name);
 
     for (name, (node, node_ty)) in &rules.rules {
-        let GeneratedRule{ parser_fn, memo_id, memo_ty } = generate_code_rule(rules, name, node);
+        let GeneratedRule{ parser_fn, memo_id, memo_ty } = generate_code_rule(rules, node_ty, name, node);
 
         parser_fns.push(parser_fn);
 
@@ -83,15 +83,15 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     }
 }
 
-fn generate_code_rule(rs: &bnf::RuleSet,
+fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
     name: &str, node: &bnf::Node) -> GeneratedRule {
 
     // Generate code for the subrule
     let (code, counter) = generate_code_node(rs, 0, node);
 
-    // TODO: Proper return type
-    let ret_tys: Vec<_> = (0..counter).map(|_| quote!{ i32 }).collect();
-    let ret_ty = quote!{ (#(#ret_tys),*) };
+    //let ret_tys: Vec<_> = (0..counter).map(|_| quote!{ i32 }).collect();
+    //let ret_ty = quote!{ (#(#ret_tys),*) };
+    let ret_ty = quote!{ #ret_ty };
 
     // Any function that wants to respect the same constraints as the parser will have to
     // have this where clause

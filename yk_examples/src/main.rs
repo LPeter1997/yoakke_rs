@@ -49,13 +49,13 @@ yk_parser!{
 name: MyParser;
 type: i32;
 
-ones ::=
+ones[char] ::=
     | ones_impl
     ;
 
-ones_impl ::=
-    | ones '1' { e0 + 1 }
-    | '1' { 1 }
+ones_impl[char] ::=
+    | ones '1' { 'a' }
+    | '1' { 'v' }
     ;
 }
 
