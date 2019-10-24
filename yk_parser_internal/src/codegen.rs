@@ -110,6 +110,7 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     };
 
     // Identifiers for this parser
+    let pub_parse_fname = quote::format_ident!("{}", name);
     let parse_fname = quote::format_ident!("parse_{}", name);
     let grow_fname = quote::format_ident!("grow_{}", name);
     let recall_fname = quote::format_ident!("recall_{}", name);
@@ -338,10 +339,12 @@ fn generate_code_rule(rs: &bnf::RuleSet,
     let parser_fn = quote!{
         #grow_code
 
-        pub fn #parse_fname(&mut self, src: I, idx: usize) ->
-            ParseResult<I, #ret_ty>
-            where #where_clause {
+        // The actual published function
+        pub fn #pub_parse_fname(&mut self, src: I) -> ParseResult<I, #ret_ty> where #where_clause {
+            self.#parse_fname(src, 0)
+        }
 
+        fn #parse_fname(&mut self, src: I, idx: usize) -> ParseResult<I, #ret_ty> where #where_clause {
             let curr_rule = #name;
             #memo_code
         }

@@ -63,7 +63,7 @@ fn main() {
     let src = "1111";
 
     let mut parser = MyParser::new();
-    let r = parser.parse_ones(src.chars(), 0);
+    let r = parser.ones(src.chars());
     if r.is_ok() {
         let ok = r.ok().unwrap();
         let val = ok.value;
