@@ -7,3 +7,4 @@ pub use yk_parser_derive::yk_parser;
 pub use yk_parser_internal::{ParseResult, ParseOk, ParseErr};
 pub use yk_parser_internal::drec;
 pub use yk_parser_internal::irec;
+pub use yk_parser_internal::{Parser, Match};

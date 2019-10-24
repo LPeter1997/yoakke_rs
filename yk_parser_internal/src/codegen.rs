@@ -37,9 +37,11 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
         memo_ctor.push(quote!{ #memo_id: HashMap::new() });
     }
 
+    let item_type = &rules.item_type;
+
     quote!{
         mod #memo_ctx_mod {
-            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr};
+            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Parser, Match};
             use ::std::string::String;
             use ::std::option::Option;
             use ::std::collections::HashMap;
@@ -59,7 +61,11 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                 #(#memo_members),*
             }
 
-            impl <I> #memo_ctx<I> {
+            impl <I> Parser for #memo_ctx<I> where I : Iterator<Item = #item_type> {
+                type Item = #item_type;
+            }
+
+            impl <I> #memo_ctx<I> where I : Iterator<Item = #item_type> {
                 pub fn new() -> Self {
                     Self{
                         call_stack: irec::CallStack::new(),
@@ -481,7 +487,7 @@ fn generate_code_atom(counter: usize, tok: TokenStream) -> (TokenStream, usize) 
     let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
-            if v == #tok {
+            if Self::matches(&v, &#tok) {
                 ParseOk{ matched: idx + 1, furthest_it: src2, furthest_error: None, value: (v) }.into()
             }
             else {

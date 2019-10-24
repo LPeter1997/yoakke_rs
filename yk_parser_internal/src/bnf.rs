@@ -11,6 +11,7 @@ use crate::syn_extensions::{parse_parenthesized_fn, parse_bracketed_fn, parse_id
 #[derive(Clone)]
 pub struct RuleSet {
     pub grammar_name: String,
+    pub item_type: Type,
     pub default_type: Option<Type>,
     pub top_rule: (String, Node),
     pub rules: HashMap<String, (Node, Type)>,
@@ -142,6 +143,27 @@ impl Parse for GrammarName {
 }
 
 /**
+ * item: char;
+ */
+struct GrammarItemType {
+    item_tok: Ident,
+    eq: Token![:],
+    ty: Type,
+    semicol: Token![;],
+}
+
+impl Parse for GrammarItemType {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(GrammarItemType{
+            item_tok: parse_ident(input, "item")?,
+            eq: input.parse()?,
+            ty: input.parse()?,
+            semicol: input.parse()?,
+        })
+    }
+}
+
+/**
  * type: i32;
  */
 
@@ -163,7 +185,6 @@ impl Parse for GrammarDefaultType {
     }
 }
 
-
 /**
  * The allowed syntax is:
  *
@@ -183,6 +204,7 @@ struct Rule {
 impl Parse for RuleSet {
     fn parse(input: ParseStream) -> Result<Self> {
         let gname: GrammarName = input.parse()?;
+        let itype: GrammarItemType = input.parse()?;
         let defty = input.parse::<GrammarDefaultType>().ok().map(|gdt| gdt.ty);
         let nnp = input.parse_terminated::<Rule, Token![;]>(Rule::parse)?;
         let mut rules = HashMap::new();
@@ -209,6 +231,7 @@ impl Parse for RuleSet {
 
         Ok(RuleSet{
             grammar_name: gname.name.to_string(),
+            item_type: itype.ty,
             default_type: defty,
             top_rule: top_rule.unwrap(),
             rules,

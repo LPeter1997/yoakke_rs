@@ -3,7 +3,7 @@ extern crate yk_lexer;
 extern crate yk_parser;
 
 use yk_lexer::{TokenType, Lexer};
-use yk_parser::{yk_parser, ParseResult};
+use yk_parser::{yk_parser, ParseResult, Match};
 
 #[derive(yk_lexer::Lexer, PartialEq, Eq, Debug)]
 enum TokTy {
@@ -47,6 +47,7 @@ enum TokTy {
 
 yk_parser!{
 name: MyParser;
+item: char;
 type: i32;
 
 ones[char] ::=
@@ -54,9 +55,21 @@ ones[char] ::=
     ;
 
 ones_impl[char] ::=
-    | ones '1' { 'a' }
+    | ones 3 { 'a' }
     | '1' { 'v' }
     ;
+}
+
+impl <I> Match<char> for MyParser<I> where I : Iterator<Item = char> {
+    fn matches(a: &char, b: &char) -> bool {
+        *a == *b
+    }
+}
+
+impl <I> Match<u8> for MyParser<I> where I : Iterator<Item = char> {
+    fn matches(a: &char, b: &u8) -> bool {
+        *a as u32 == *b as u32
+    }
 }
 
 fn main() {
