@@ -91,7 +91,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
     name: &str, node: &bnf::Node) -> GeneratedRule {
 
     // Generate code for the subrule
-    let (code, counter) = generate_code_node(rs, 0, node);
+    let (code, counter) = generate_code_node(rs, ret_ty, 0, node);
 
     //let ret_tys: Vec<_> = (0..counter).map(|_| quote!{ i32 }).collect();
     //let ret_ty = quote!{ (#(#ret_tys),*) };
@@ -110,11 +110,12 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
 
     // Identifiers for this parser
     let pub_parse_fname = quote::format_ident!("{}", name);
-    let parse_fname = quote::format_ident!("parse_{}", name);
-    let grow_fname = quote::format_ident!("grow_{}", name);
-    let recall_fname = quote::format_ident!("recall_{}", name);
+    let parse_fname     = quote::format_ident!("parse_{}", name);
+    let apply_fname     = quote::format_ident!("apply_{}", name);
+    let grow_fname      = quote::format_ident!("grow_{}", name);
+    let recall_fname    = quote::format_ident!("recall_{}", name);
     let lr_answer_fname = quote::format_ident!("lr_answer_{}", name);
-    let memo_id = quote::format_ident!("memo_{}", name);
+    let memo_id         = quote::format_ident!("memo_{}", name);
     //let memo_ctx = quote::format_ident!("{}", rs.grammar_name);
 
     // How to reference the memo table's current entry
@@ -142,7 +143,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                 res.clone()
             }
             else {
-                let res = { #code };
+                let res = self.#apply_fname(src, idx);
                 insert_and_get(&mut #memo_entry, idx, res).clone()
             }
         }},
@@ -155,7 +156,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                     #memo_entry.insert(idx, drec::DirectRec::Base(ParseErr::new().into()));
                     // Now invoke the parser
                     // If it's recursive, the entry must have changed
-                    let tmp_res = { #code };
+                    let tmp_res = self.#apply_fname(src, idx);
                     // Refresh the entry, check
                     match #memo_entry.get(&idx).unwrap() {
                         drec::DirectRec::Recurse(_) => {
@@ -198,7 +199,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                         Rc::new(RefCell::new(irec::LeftRecursive::with_parser_and_seed::<I, #ret_ty>(#name, ParseErr::new().into())));
                     self.call_stack.push(base.clone());
                     #memo_entry.insert(idx, irec::Entry::LeftRecursive(base.clone()));
-                    let tmp_res = { #code };
+                    let tmp_res = self.#apply_fname(src, idx);
                     self.call_stack.pop();
 
                     if base.borrow().head.is_none() {
@@ -237,7 +238,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                     return old;
                 }
 
-                let tmp_res = { #code };
+                let tmp_res = self.#apply_fname(src, idx);
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
                     // Successfully grew the seed
@@ -273,7 +274,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                             Some(irec::Entry::ParseResult(ParseErr::new().into()))
                         }
                         else if h.borrow_mut().eval.remove(#name) {
-                            let tmp_res = { #code };
+                            let tmp_res = self.#apply_fname(src, idx);
                             Some(insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).clone())
                         }
                         else {
@@ -316,7 +317,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                 let involved_clone = (*h).borrow().involved.clone();
                 h.borrow_mut().eval = involved_clone;
 
-                let tmp_res = { #code };
+                let tmp_res = self.#apply_fname(src, idx);
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
                     // Successfully grew the seed
@@ -347,23 +348,28 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
             let curr_rule = #name;
             #memo_code
         }
+
+        fn #apply_fname(&mut self, src: I, idx: usize) -> ParseResult<I, #ret_ty> where #where_clause {
+            let curr_rule = #name;
+            { #code }
+        }
     };
 
     GeneratedRule{ parser_fn, memo_id, memo_ty }
 }
 
-fn generate_code_node(rs: &bnf::RuleSet, counter: usize,
-    node: &bnf::Node) -> (TokenStream, usize) {
+fn generate_code_node(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
+    node: &bnf::Node) -> (TokenStream, Vec<Type>) {
 
     match node {
         bnf::Node::Transformation{ subnode, action, } =>
-            generate_code_transformation(rs, counter, subnode, action),
+            generate_code_transformation(rs, ret_ty, counter, subnode, action),
 
         bnf::Node::Alternative{ first, second, } =>
-            generate_code_alternative(rs, counter, first, second),
+            generate_code_alternative(rs, ret_ty, counter, first, second),
 
         bnf::Node::Sequence{ first, second, } =>
-            generate_code_sequence(rs, counter, first, second),
+            generate_code_sequence(rs, ret_ty, counter, first, second),
 
         bnf::Node::Literal(lit) => match lit {
             bnf::LiteralNode::Ident(p) => generate_code_ident(rs, counter, p),
@@ -372,38 +378,47 @@ fn generate_code_node(rs: &bnf::RuleSet, counter: usize,
     }
 }
 
-fn generate_code_transformation(rs: &bnf::RuleSet, counter: usize,
-    node: &bnf::Node, action: &Block) -> (TokenStream, usize) {
+fn generate_code_transformation(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
+    node: &bnf::Node, action: &Block) -> (TokenStream, Vec<Type>) {
 
     assert_eq!(counter, 0);
 
-    let (code, counter) = generate_code_node(rs, counter, node);
+    let (code, types) = generate_code_node(rs, ret_ty, counter, node);
 
-    let params = param_list(0..counter);
-    let closure = quote!{ |#params| #action };
+    let params: Vec<_> = types.iter().enumerate().map(|(i, ty)| {
+        let ident = quote::format_ident!("e{}", i);
+        quote!{ #ident: #ty }
+    }).collect();
+    let params = quote!{ #(#params),* };
+    let param_tys: Vec<_> = types.iter().map(|ty| quote!{ #ty }).collect();
+    let param_tys = quote!{ #(#param_tys),* };
+
+    let param_names = param_list(0..types.len());
+    let closure = quote!{ |#params| -> #ret_ty #action };
 
     let code = quote!{{
         let res = { #code };
         if let ParseResult::Ok(ok) = res {
-            ok.map(|(#params)| (#closure)(#params)).into()
+            ok.map(|(#param_names): (#param_tys)| (#closure)(#param_names)).into()
         }
         else {
             res.err().unwrap().into()
         }
     }};
 
-    (code, 1)
+    (code, vec![ret_ty.clone()])
 }
 
-fn generate_code_alternative(rs: &bnf::RuleSet, counter: usize,
-    first: &bnf::Node, second: &bnf::Node) -> (TokenStream, usize) {
+fn generate_code_alternative(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
+    first: &bnf::Node, second: &bnf::Node) -> (TokenStream, Vec<Type>) {
 
-    let (code1, counter1) = generate_code_node(rs, counter, first);
-    let (code2, counter2) = generate_code_node(rs, counter, second);
+    let (code1, types1) = generate_code_node(rs, ret_ty, counter, first);
+    let (code2, types2) = generate_code_node(rs, ret_ty, counter, second);
 
-    assert_eq!(counter1, counter2);
+    // Also they should be the same types
+    assert_eq!(types1.len(), types2.len());
 
-    let params = param_list(counter..counter1);
+    let params = param_list(counter..(counter + types1.len()));
 
     let code = quote!{{
         let res1 = { #code1 };
@@ -411,17 +426,17 @@ fn generate_code_alternative(rs: &bnf::RuleSet, counter: usize,
         ParseResult::unify_alternatives(res1, res2)
     }};
 
-    (code, counter1)
+    (code, types1)
 }
 
-fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
-    first: &bnf::Node, second: &bnf::Node) -> (TokenStream, usize) {
+fn generate_code_sequence(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
+    first: &bnf::Node, second: &bnf::Node) -> (TokenStream, Vec<Type>) {
 
-    let (code1, counter1) = generate_code_node(rs, counter, first);
-    let (code2, counter2) = generate_code_node(rs, counter1, second);
+    let (code1, mut types1) = generate_code_node(rs, ret_ty, counter, first);
+    let (code2, mut types2) = generate_code_node(rs, ret_ty, types1.len(), second);
 
-    let params1 = param_list(counter..counter1);
-    let params2 = param_list(counter1..counter2);
+    let params1 = param_list(counter..(counter + types1.len()));
+    let params2 = param_list((counter + types1.len())..(counter + types1.len() + types2.len()));
 
     let code = quote!{{
         let res1 = { #code1 };
@@ -447,35 +462,33 @@ fn generate_code_sequence(rs: &bnf::RuleSet, counter: usize,
         }
     }};
 
-    (code, counter2)
+    types1.append(&mut types2);
+    (code, types1)
 }
 
-fn generate_code_lit(rs: &bnf::RuleSet, counter: usize,
-    lit: &Lit) -> (TokenStream, usize) {
-
-    generate_code_atom(counter, quote!{ #lit })
+fn generate_code_lit(rs: &bnf::RuleSet, counter: usize, lit: &Lit) -> (TokenStream, Vec<Type>) {
+    generate_code_atom(rs, counter, quote!{ #lit })
 }
 
-fn generate_code_ident(rs: &bnf::RuleSet, counter: usize,
-    lit: &Path) -> (TokenStream, usize) {
+fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenStream, Vec<Type>) {
 
     // Rule identifier
     if lit.leading_colon.is_none() && lit.segments.len() == 1 {
         let id = lit.segments[0].ident.to_string();
-        if rs.rules.contains_key(&id) {
+        if let Some((_, ty)) = rs.rules.get(&id) {
             let fname = quote::format_ident!("parse_{}", id);
             let code = quote!{
                 self.#fname(src.clone(), idx)
             };
-            return (code, counter + 1);
+            return (code, vec![ty.clone()]);
         }
     }
 
     // Some identifier
-    return generate_code_atom(counter, quote!{ #lit });
+    return generate_code_atom(rs, counter, quote!{ #lit });
 }
 
-fn generate_code_atom(counter: usize, tok: TokenStream) -> (TokenStream, usize) {
+fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (TokenStream, Vec<Type>) {
     let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
@@ -491,7 +504,7 @@ fn generate_code_atom(counter: usize, tok: TokenStream) -> (TokenStream, usize) 
             ParseErr::single(idx, "end of input".into(), curr_rule, Self::show_expected(&#tok)).into()
         }
     }};
-    (code, counter + 1)
+    (code, vec![rs.item_type.clone()])
 }
 
 // Helpers
