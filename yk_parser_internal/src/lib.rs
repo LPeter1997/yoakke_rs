@@ -13,4 +13,4 @@ mod r#match;
 
 pub use codegen::generate_code;
 pub use parse_result::{ParseResult, ParseOk, ParseErr};
-pub use r#match::{Parser, Match, ShowExpected, ShowFound};
+pub use r#match::{Parser, Match, ShowFound};

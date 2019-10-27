@@ -2,6 +2,7 @@
 extern crate yk_lexer;
 extern crate yk_parser;
 
+use std::io::{self, BufRead};
 use yk_lexer::{Token, TokenType, Lexer};
 use yk_parser::{yk_parser, ParseResult, Match};
 
@@ -42,37 +43,37 @@ mod peg {
         item: Token<TokTy>;
         type: i32;
 
-        expr ::= add_expr;
+        expr ::= eq_expr;
 
         eq_expr ::=
-            | eq_expr TokTy::Eq rel_expr { btoi(e0 == e2) }
-            | eq_expr TokTy::Neq rel_expr { btoi(e0 != e2) }
+            | eq_expr "==" rel_expr { btoi(e0 == e2) }
+            | eq_expr "!=" rel_expr { btoi(e0 != e2) }
             | rel_expr
             ;
 
         rel_expr ::=
-            | rel_expr TokTy::Gr add_expr { btoi(e0 > e2) }
-            | rel_expr TokTy::Le add_expr { btoi(e0 < e2) }
-            | rel_expr TokTy::GrEq add_expr { btoi(e0 >= e2) }
-            | rel_expr TokTy::LeEq add_expr { btoi(e0 <= e2) }
+            | rel_expr ">" add_expr { btoi(e0 > e2) }
+            | rel_expr "<" add_expr { btoi(e0 < e2) }
+            | rel_expr ">=" add_expr { btoi(e0 >= e2) }
+            | rel_expr "<=" add_expr { btoi(e0 <= e2) }
             | add_expr
             ;
 
         add_expr ::=
-            | add_expr TokTy::Add mul_expr { e0 + e2 }
-            | add_expr TokTy::Sub mul_expr { e0 - e2 }
+            | add_expr "+" mul_expr { e0 + e2 }
+            | add_expr "-" mul_expr { e0 - e2 }
             | mul_expr
             ;
 
         mul_expr ::=
-            | mul_expr TokTy::Mul atom { e0 * e2 }
-            | mul_expr TokTy::Div atom { e0 / e2 }
+            | mul_expr "*" atom { e0 * e2 }
+            | mul_expr "/" atom { e0 / e2 }
             | atom
             ;
 
         atom ::=
             | TokTy::IntLit { e0.value.parse::<i32>().unwrap() }
-            | TokTy::LeftParen expr TokTy::RightParen { e1 }
+            | "(" expr ")" { e1 }
             ;
     }
 
@@ -80,11 +81,19 @@ mod peg {
         fn matches(a: &Token<TokTy>, b: &TokTy) -> bool {
             a.kind == *b
         }
-    }
 
-    impl ShowExpected<TokTy> for Parser {
         fn show_expected(t: &TokTy) -> String {
             "<TokTy>".into()
+        }
+    }
+
+    impl Match<&str> for Parser {
+        fn matches(a: &Token<TokTy>, b: &&str) -> bool {
+            a.value == *b
+        }
+
+        fn show_expected(t: &&str) -> String {
+            (*t).into()
         }
     }
 
@@ -95,19 +104,14 @@ mod peg {
     }
 }
 
-/*
-impl <I> Match<char> for MyParser<I> where I : Iterator<Item = char> {
-    fn matches(a: &char, b: &char) -> bool {
-        *a == *b
-    }
-}
-*/
-
 fn main() {
+    let stdin = io::stdin();
+    for line in stdin.lock().lines() {
+
     let mut lexer = TokTy::lexer();
     let mut tokens = Vec::new();
 
-    let m = lexer.modify(&tokens, 0..0, "1*3+2");
+    let m = lexer.modify(&tokens, 0..0, &line.unwrap());
     tokens.splice(m.erased, m.inserted);
 
     let mut parser = peg::Parser::new();
@@ -137,17 +141,5 @@ fn main() {
         println!("But got '{}'", err.found_element);
     }
 
-    /*
-    // Creating a lexer
-    let mut lexer = MyTokenType::lexer();
-    let mut tokens = Vec::new();
-    // Modify
-    let m = lexer.modify(&tokens, 0..0, "hello world");
-    tokens.splice(m.erased, m.inserted);
-    print_tokens(lexer.source(), &tokens);
-    // Modify
-    let m = lexer.modify(&tokens, 5..5, " there");
-    tokens.splice(m.erased, m.inserted);
-    print_tokens(lexer.source(), &tokens);
-    */
+    }
 }

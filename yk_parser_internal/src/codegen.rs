@@ -41,7 +41,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 
     quote!{
         //mod #memo_ctx_mod {
-            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Match, ShowExpected, ShowFound};
+            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Match, ShowFound};
             use ::std::string::String;
             use ::std::option::Option;
             use ::std::collections::HashMap;
