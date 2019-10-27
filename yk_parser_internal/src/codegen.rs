@@ -444,7 +444,7 @@ fn generate_code_sequence(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
             // Overwrite positional data for the next part's invocation
             let src = {
                 let mut src = src.clone();
-                src.nth(ok.matched);
+                src.nth(ok.matched - 1);
                 src
             };
             let idx = idx + ok.matched;
@@ -497,7 +497,7 @@ fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (T
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
             if Self::matches(&v, &#tok) {
-                ParseOk{ matched: idx + 1, furthest_error: None, value: (v) }.into()
+                ParseOk{ matched: 1, furthest_error: None, value: (v) }.into()
             }
             else {
                 let got = Self::show_found(&v);

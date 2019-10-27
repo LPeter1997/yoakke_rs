@@ -78,8 +78,6 @@ mod peg {
 
     impl Match<TokTy> for Parser {
         fn matches(a: &Token<TokTy>, b: &TokTy) -> bool {
-            let res = a.kind == *b;
-            println!("{} == {:?} => {}", a.value, b, res);
             a.kind == *b
         }
     }
@@ -109,7 +107,7 @@ fn main() {
     let mut lexer = TokTy::lexer();
     let mut tokens = Vec::new();
 
-    let m = lexer.modify(&tokens, 0..0, "1+2");
+    let m = lexer.modify(&tokens, 0..0, "1*3+2");
     tokens.splice(m.erased, m.inserted);
 
     let mut parser = peg::Parser::new();

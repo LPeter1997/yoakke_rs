@@ -97,7 +97,7 @@ impl <T> ParseResult<T> {
         match b {
             ParseResult::Ok(b) => {
                 ParseResult::Ok(ParseOk{
-                    matched: b.matched,
+                    matched: a.matched + b.matched,
                     furthest_error: Self::unify_errors_in_oks(a.furthest_error, b.furthest_error),
                     value: (a.value, b.value),
                 })
