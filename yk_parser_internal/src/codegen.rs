@@ -53,17 +53,17 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             use ::std::rc::Rc;
             use ::std::cell::{RefCell, RefMut};
 
-            pub struct Parser<I> {
+            pub struct Parser {
                 call_stack: irec::CallStack,
                 call_heads: irec::CallHeadTable,
                 #(#memo_members),*
             }
 
-            impl <I> ::yk_parser::Parser for Parser<I> where I : Iterator<Item = #item_type> {
+            impl ::yk_parser::Parser for Parser {
                 type Item = #item_type;
             }
 
-            impl <I> Parser<I> where I : Iterator<Item = #item_type> {
+            impl Parser {
                 pub fn new() -> Self {
                     Self{
                         call_stack: irec::CallStack::new(),
@@ -99,12 +99,12 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
 
     // Any function that wants to respect the same constraints as the parser will have to
     // have this where clause
+    let item_type = &rs.item_type;
     let where_clause = quote!{
-        I : Iterator + Clone,
+        I : Iterator<Item = #item_type> + Clone,
 
         // TODO: Do we need this everywhere?
         // Can we at least get rid of the iterator?
-        I : 'static,
         #ret_ty : 'static
     };
 
@@ -124,15 +124,15 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
     let rec = rs.left_recursion(name);
     let memo_ty = match rec {
         bnf::LeftRecursion::None => {quote!{
-            ParseResult<I, #ret_ty>
+            ParseResult<#ret_ty>
         }},
 
         bnf::LeftRecursion::Direct => {quote!{
-            drec::DirectRec<I, #ret_ty>
+            drec::DirectRec<#ret_ty>
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
-            irec::Entry<I, #ret_ty>
+            irec::Entry<#ret_ty>
         }}
     };
 
@@ -143,7 +143,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                 res.clone()
             }
             else {
-                let res = self.#apply_fname(src, idx);
+                let res = self.#apply_fname(src.clone(), idx);
                 insert_and_get(&mut #memo_entry, idx, res).clone()
             }
         }},
@@ -156,7 +156,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                     #memo_entry.insert(idx, drec::DirectRec::Base(ParseErr::new().into()));
                     // Now invoke the parser
                     // If it's recursive, the entry must have changed
-                    let tmp_res = self.#apply_fname(src, idx);
+                    let tmp_res = self.#apply_fname(src.clone(), idx);
                     // Refresh the entry, check
                     match #memo_entry.get(&idx).unwrap() {
                         drec::DirectRec::Recurse(_) => {
@@ -191,15 +191,15 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
-            let m = self.#recall_fname(src.clone(), idx); // Option<irec::Entry<I, T>>
+            let m = self.#recall_fname(src.clone(), idx); // Option<irec::Entry<T>>
 
             match m {
                 None => {
-                    let mut base =
-                        Rc::new(RefCell::new(irec::LeftRecursive::with_parser_and_seed::<I, #ret_ty>(#name, ParseErr::new().into())));
+                    let mut base = Rc::new(RefCell::new(
+                        irec::LeftRecursive::with_parser_and_seed::<#ret_ty>(#name, ParseErr::new().into())));
                     self.call_stack.push(base.clone());
                     #memo_entry.insert(idx, irec::Entry::LeftRecursive(base.clone()));
-                    let tmp_res = self.#apply_fname(src, idx);
+                    let tmp_res = self.#apply_fname(src.clone(), idx);
                     self.call_stack.pop();
 
                     if base.borrow().head.is_none() {
@@ -228,8 +228,8 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
         bnf::LeftRecursion::None => quote!{},
 
         bnf::LeftRecursion::Direct => {quote!{
-            fn #grow_fname(&mut self, src: I, idx: usize,
-                old: ParseResult<I, #ret_ty>) -> ParseResult<I, #ret_ty>
+            fn #grow_fname<I>(&mut self, src: I, idx: usize,
+                old: ParseResult<#ret_ty>) -> ParseResult<#ret_ty>
                 where #where_clause {
 
                 let curr_rule = #name;
@@ -238,13 +238,13 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                     return old;
                 }
 
-                let tmp_res = self.#apply_fname(src, idx);
+                let tmp_res = self.#apply_fname(src.clone(), idx);
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
                     // Successfully grew the seed
                     let new_old = insert_and_get(
                         &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_res)).parse_result().clone();
-                    return self.#grow_fname(src, idx, new_old);
+                    return self.#grow_fname(src.clone(), idx, new_old);
                 }
 
                 // We need to overwrite max-furthest in the memo-table!
@@ -256,8 +256,8 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
-            fn #recall_fname(&mut self, src: I, idx: usize)
-                -> Option<irec::Entry<I, #ret_ty>>
+            fn #recall_fname<I>(&mut self, src: I, idx: usize)
+                -> Option<irec::Entry<#ret_ty>>
                 where #where_clause {
 
                 let curr_rule = #name;
@@ -274,7 +274,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                             Some(irec::Entry::ParseResult(ParseErr::new().into()))
                         }
                         else if h.borrow_mut().eval.remove(#name) {
-                            let tmp_res = self.#apply_fname(src, idx);
+                            let tmp_res = self.#apply_fname(src.clone(), idx);
                             Some(insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).clone())
                         }
                         else {
@@ -284,9 +284,9 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                 }
             }
 
-            fn #lr_answer_fname(&mut self, src: I, idx: usize,
+            fn #lr_answer_fname<I>(&mut self, src: I, idx: usize,
                 growable: &Rc<RefCell<irec::LeftRecursive>>)
-                -> ParseResult<I, #ret_ty>
+                -> ParseResult<#ret_ty>
                 where #where_clause {
 
                 assert!((*growable).borrow().head.is_some());
@@ -302,13 +302,13 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                     return s;
                 }
                 else {
-                    return self.#grow_fname(src, idx, s, (*growable).borrow().head.as_ref().unwrap());
+                    return self.#grow_fname(src.clone(), idx, s, (*growable).borrow().head.as_ref().unwrap());
                 }
             }
 
-            fn #grow_fname(&mut self, src: I, idx: usize,
-                old: ParseResult<I, #ret_ty>, h: &Rc<RefCell<irec::RecursionHead>>)
-                -> ParseResult<I, #ret_ty>
+            fn #grow_fname<I>(&mut self, src: I, idx: usize,
+                old: ParseResult<#ret_ty>, h: &Rc<RefCell<irec::RecursionHead>>)
+                -> ParseResult<#ret_ty>
                 where #where_clause {
 
                 let curr_rule = #name;
@@ -317,13 +317,13 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
                 let involved_clone = (*h).borrow().involved.clone();
                 h.borrow_mut().eval = involved_clone;
 
-                let tmp_res = self.#apply_fname(src, idx);
+                let tmp_res = self.#apply_fname(src.clone(), idx);
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
                     // Successfully grew the seed
                     let new_old = insert_and_get(
                         &mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result();
-                    return self.#grow_fname(src, idx, new_old, h);
+                    return self.#grow_fname(src.clone(), idx, new_old, h);
                 }
 
                 // We need to overwrite max-furthest in the memo-table!
@@ -340,16 +340,16 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
         #grow_code
 
         // The actual published function
-        pub fn #pub_parse_fname(&mut self, src: I) -> ParseResult<I, #ret_ty> where #where_clause {
+        pub fn #pub_parse_fname<I>(&mut self, src: I) -> ParseResult<#ret_ty> where #where_clause {
             self.#parse_fname(src, 0)
         }
 
-        fn #parse_fname(&mut self, src: I, idx: usize) -> ParseResult<I, #ret_ty> where #where_clause {
+        fn #parse_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty> where #where_clause {
             let curr_rule = #name;
             #memo_code
         }
 
-        fn #apply_fname(&mut self, src: I, idx: usize) -> ParseResult<I, #ret_ty> where #where_clause {
+        fn #apply_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty> where #where_clause {
             let curr_rule = #name;
             { #code }
         }
@@ -442,8 +442,12 @@ fn generate_code_sequence(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
         let res1 = { #code1 };
         if let ParseResult::Ok(ok) = res1 {
             // Overwrite positional data for the next part's invocation
-            let src = ok.furthest_it.clone();
-            let idx = ok.matched;
+            let src = {
+                let mut src = src.clone();
+                src.nth(ok.matched);
+                src
+            };
+            let idx = idx + ok.matched;
             // Invoke RHS
             let res2 = { #code2 };
 
@@ -493,7 +497,7 @@ fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (T
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
             if Self::matches(&v, &#tok) {
-                ParseOk{ matched: idx + 1, furthest_it: src2, furthest_error: None, value: (v) }.into()
+                ParseOk{ matched: idx + 1, furthest_error: None, value: (v) }.into()
             }
             else {
                 let got = Self::show_found(&v);

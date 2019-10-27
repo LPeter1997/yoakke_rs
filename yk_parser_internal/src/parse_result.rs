@@ -5,15 +5,14 @@
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
-pub enum ParseResult<I, T> {
-    Ok(ParseOk<I, T>),
+pub enum ParseResult<T> {
+    Ok(ParseOk<T>),
     Err(ParseErr),
 }
 
 #[derive(Clone)]
-pub struct ParseOk<I, T> {
+pub struct ParseOk<T> {
     pub matched: usize,
-    pub furthest_it: I,
     pub furthest_error: Option<ParseErr>,
     pub value: T,
 }
@@ -32,7 +31,7 @@ pub struct ParseErrElement {
     pub expected_elements: HashSet<String>,
 }
 
-impl <I, T> ParseResult<I, T> {
+impl <T> ParseResult<T> {
     pub fn is_ok(&self) -> bool {
         match self {
             ParseResult::Ok(_) => true,
@@ -51,7 +50,7 @@ impl <I, T> ParseResult<I, T> {
         }
     }
 
-    pub fn ok(self) -> Option<ParseOk<I, T>> {
+    pub fn ok(self) -> Option<ParseOk<T>> {
         match self {
             ParseResult::Ok(ok) => Some(ok),
             _ => None,
@@ -94,12 +93,11 @@ impl <I, T> ParseResult<I, T> {
         }
     }
 
-    pub fn unify_sequence<U>(a: ParseOk<I, T>, b: ParseResult<I, U>) -> ParseResult<I, (T, U)> {
+    pub fn unify_sequence<U>(a: ParseOk<T>, b: ParseResult<U>) -> ParseResult<(T, U)> {
         match b {
             ParseResult::Ok(b) => {
                 ParseResult::Ok(ParseOk{
                     matched: b.matched,
-                    furthest_it: b.furthest_it,
                     furthest_error: Self::unify_errors_in_oks(a.furthest_error, b.furthest_error),
                     value: (a.value, b.value),
                 })
@@ -176,19 +174,19 @@ impl <I, T> ParseResult<I, T> {
     }
 }
 
-impl <I, T> From<ParseOk<I, T>> for ParseResult<I, T> {
-    fn from(ok: ParseOk<I, T>) -> Self {
+impl <T> From<ParseOk<T>> for ParseResult<T> {
+    fn from(ok: ParseOk<T>) -> Self {
         Self::Ok(ok)
     }
 }
 
-impl <I, T> From<ParseErr> for ParseResult<I, T> {
+impl <T> From<ParseErr> for ParseResult<T> {
     fn from(err: ParseErr) -> Self {
         Self::Err(err)
     }
 }
 
-impl <I, T> ParseOk<I, T> {
+impl <T> ParseOk<T> {
     pub fn furthest_look(&self) -> usize {
         if let Some(err) = &self.furthest_error {
             std::cmp::max(self.matched, err.furthest_look())
@@ -198,10 +196,9 @@ impl <I, T> ParseOk<I, T> {
         }
     }
 
-    pub fn map<F, U>(self, f: F) -> ParseOk<I, U> where F: FnOnce(T) -> U {
+    pub fn map<F, U>(self, f: F) -> ParseOk<U> where F: FnOnce(T) -> U {
         ParseOk{
             matched: self.matched,
-            furthest_it: self.furthest_it,
             furthest_error: self.furthest_error,
             value: f(self.value),
         }

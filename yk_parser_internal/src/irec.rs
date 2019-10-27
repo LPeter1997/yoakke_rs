@@ -33,13 +33,13 @@ pub struct LeftRecursive {
 }
 
 impl LeftRecursive {
-    pub fn with_parser_and_seed<I, T>(parser: &'static str, seed: ParseResult<I, T>) -> Self where I : 'static, T: 'static {
+    pub fn with_parser_and_seed<T>(parser: &'static str, seed: ParseResult<T>) -> Self where T: 'static {
         Self{ parser, seed: Box::new(seed), head: None }
     }
 
-    pub fn parse_result<I, T>(&self) -> ParseResult<I, T> where I : 'static + Clone, T : 'static + Clone {
-        assert!(self.seed.is::<ParseResult<I, T>>());
-        (*self.seed.downcast_ref::<ParseResult<I, T>>().unwrap()).clone()
+    pub fn parse_result<T>(&self) -> ParseResult<T> where T : 'static + Clone {
+        assert!(self.seed.is::<ParseResult<T>>());
+        (*self.seed.downcast_ref::<ParseResult<T>>().unwrap()).clone()
     }
 }
 
@@ -104,13 +104,13 @@ impl CallStack {
 // Entry in the memo table
 
 #[derive(Clone)]
-pub enum Entry<I, T> {
+pub enum Entry<T> {
     LeftRecursive(Rc<RefCell<LeftRecursive>>),
-    ParseResult(ParseResult<I, T>),
+    ParseResult(ParseResult<T>),
 }
 
-impl <I, T> Entry<I, T> where I : Clone, T : Clone {
-    pub fn parse_result(&self) -> ParseResult<I, T> where I: 'static, T: 'static {
+impl <T> Entry<T> where T : Clone {
+    pub fn parse_result(&self) -> ParseResult<T> where T: 'static {
         match self {
             Entry::LeftRecursive(lr) => (**lr).borrow().parse_result(),
             Entry::ParseResult(r) => r.clone(),

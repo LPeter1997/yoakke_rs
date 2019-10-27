@@ -4,14 +4,14 @@
 
 use crate::parse_result::ParseResult;
 
-pub enum DirectRec<I, T> {
-    Base(ParseResult<I, T>),
-    Stub(ParseResult<I, T>),
-    Recurse(ParseResult<I, T>),
+pub enum DirectRec<T> {
+    Base(ParseResult<T>),
+    Stub(ParseResult<T>),
+    Recurse(ParseResult<T>),
 }
 
-impl <I, T> DirectRec<I, T> {
-    pub fn parse_result(&self) -> &ParseResult<I, T> {
+impl <T> DirectRec<T> {
+    pub fn parse_result(&self) -> &ParseResult<T> {
         match self {
             DirectRec::Base(res) => res,
             DirectRec::Stub(res) => res,

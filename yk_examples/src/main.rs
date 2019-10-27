@@ -6,7 +6,7 @@ use yk_lexer::{Token, TokenType, Lexer};
 use yk_parser::{yk_parser, ParseResult, Match};
 
 #[derive(Lexer, Clone, Copy, PartialEq, Eq, Debug)]
-enum TokTy {
+pub enum TokTy {
     #[error] Error,
     #[end] End,
     #[regex(r"[ \r\n]")] #[ignore] Whitespace,
@@ -42,7 +42,7 @@ mod peg {
         item: Token<TokTy>;
         type: i32;
 
-        expr ::= eq_expr;
+        expr ::= add_expr;
 
         eq_expr ::=
             | eq_expr TokTy::Eq rel_expr { btoi(e0 == e2) }
@@ -76,19 +76,21 @@ mod peg {
             ;
     }
 
-    impl <I> Match<TokTy> for Parser<I> where I : Iterator<Item = Token<TokTy>> {
+    impl Match<TokTy> for Parser {
         fn matches(a: &Token<TokTy>, b: &TokTy) -> bool {
+            let res = a.kind == *b;
+            println!("{} == {:?} => {}", a.value, b, res);
             a.kind == *b
         }
     }
 
-    impl <I> ShowExpected<TokTy> for Parser<I> where I : Iterator<Item = Token<TokTy>> {
+    impl ShowExpected<TokTy> for Parser {
         fn show_expected(t: &TokTy) -> String {
             "<TokTy>".into()
         }
     }
 
-    impl <I> ShowFound for Parser<I> where I : Iterator<Item = Token<TokTy>> {
+    impl ShowFound for Parser {
         fn show_found(t: &Token<TokTy>) -> String {
             t.value.clone()
         }
@@ -107,7 +109,7 @@ fn main() {
     let mut lexer = TokTy::lexer();
     let mut tokens = Vec::new();
 
-    let m = lexer.modify(&tokens, 0..0, "1+2+3");
+    let m = lexer.modify(&tokens, 0..0, "1+2");
     tokens.splice(m.erased, m.inserted);
 
     let mut parser = peg::Parser::new();
