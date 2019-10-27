@@ -20,6 +20,7 @@ pub enum TokTy {
     #[token("-")] Sub,
     #[token("*")] Mul,
     #[token("/")] Div,
+    #[token("%")] Mod,
 
     #[token(">")] Gr,
     #[token(">=")] GrEq,
@@ -51,63 +52,106 @@ pub enum TokTy {
 }
 
 mod peg {
-    use crate::TokTy;
+    use crate::{TokTy, Expr, Stmt};
     use yk_parser::yk_parser;
     use yk_lexer::Token;
 
-    fn btoi(b: bool) -> i32 { if b { 1 } else { 0 } }
-    fn itob(i: i32) -> bool { i != 0 }
+    // TODO: We could make the macro able to change types midway, like
+    // type: xyz;
+    // rules...
+    // type: ijk;
+    // rules...
+    // That would make writing blocks of grammar easier
 
     yk_parser!{
         item: Token<TokTy>;
-        type: i32;
+        type: Box<Expr>;
+
+        // Statements
+
+        program[Box<Stmt>] ::= compound_stmt;
+
+        stmt[Box<Stmt>] ::=
+            | if_stmt
+            | while_stmt
+            | asgn_stmt
+            //| expr_stmt
+            | print_stmt
+            | "{" compound_stmt "}" { e1 }
+            ;
+
+        if_stmt[Box<Stmt>] ::=
+            | "if" expr stmt "else" stmt { Box::new(Stmt::If(e1, e2, Some(e4))) }
+            | "if" expr stmt { Box::new(Stmt::If(e1, e2, None)) }
+            ;
+
+        while_stmt[Box<Stmt>] ::=
+            | "while" expr stmt { Box::new(Stmt::While(e1, e2)) }
+            ;
+
+        asgn_stmt[Box<Stmt>] ::=
+            | TokTy::Ident "=" expr { Box::new(Stmt::Asgn(e0.value.clone(), e2)) }
+            ;
+
+        compound_stmt[Box<Stmt>] ::=
+            | compound_stmt stmt { if let Stmt::Compound(mut ss) = *e0 { ss.push(e1); Box::new(Stmt::Compound(ss)) } else { panic!("No"); } }
+            | stmt { Box::new(Stmt::Compound(vec![e0])) }
+            ;
+
+        print_stmt[Box<Stmt>] ::=
+            | "print" expr { Box::new(Stmt::Print(e1)) }
+            ;
+
+        // Expressions
 
         expr ::= or_expr;
 
         or_expr ::=
-            | or_expr "or" and_expr { btoi(itob(e0) || itob(e2)) }
+            | or_expr "or" and_expr { Box::new(Expr::Or(e0, e2)) }
             | and_expr
             ;
 
         and_expr ::=
-            | and_expr "and" eq_expr { btoi(itob(e0) && itob(e2)) }
+            | and_expr "and" eq_expr { Box::new(Expr::And(e0, e2)) }
             | eq_expr
             ;
 
         eq_expr ::=
-            | eq_expr "==" rel_expr { btoi(e0 == e2) }
-            | eq_expr "!=" rel_expr { btoi(e0 != e2) }
+            | eq_expr "==" rel_expr { Box::new(Expr::Eq(e0, e2)) }
+            | eq_expr "!=" rel_expr { Box::new(Expr::Neq(e0, e2)) }
             | rel_expr
             ;
 
         rel_expr ::=
-            | rel_expr ">" add_expr { btoi(e0 > e2) }
-            | rel_expr "<" add_expr { btoi(e0 < e2) }
-            | rel_expr ">=" add_expr { btoi(e0 >= e2) }
-            | rel_expr "<=" add_expr { btoi(e0 <= e2) }
+            | rel_expr ">" add_expr { Box::new(Expr::Gr(e0, e2)) }
+            | rel_expr "<" add_expr { Box::new(Expr::Le(e0, e2)) }
+            | rel_expr ">=" add_expr { Box::new(Expr::GrEq(e0, e2)) }
+            | rel_expr "<=" add_expr { Box::new(Expr::LeEq(e0, e2)) }
             | add_expr
             ;
 
         add_expr ::=
-            | add_expr "+" mul_expr { e0 + e2 }
-            | add_expr "-" mul_expr { e0 - e2 }
+            | add_expr "+" mul_expr { Box::new(Expr::Add(e0, e2)) }
+            | add_expr "-" mul_expr { Box::new(Expr::Sub(e0, e2)) }
             | mul_expr
             ;
 
         mul_expr ::=
-            | mul_expr "*" unary_expr { e0 * e2 }
-            | mul_expr "/" unary_expr { e0 / e2 }
+            | mul_expr "*" unary_expr { Box::new(Expr::Mul(e0, e2)) }
+            | mul_expr "/" unary_expr { Box::new(Expr::Div(e0, e2)) }
+            | mul_expr "%" unary_expr { Box::new(Expr::Mod(e0, e2)) }
             | unary_expr
             ;
 
         unary_expr ::=
-            | "!" unary_expr { btoi(!itob(e1)) }
-            | "-" unary_expr { -e1 }
+            | "!" unary_expr { Box::new(Expr::Not(e1)) }
+            | "-" unary_expr { Box::new(Expr::Neg(e1)) }
             | atom
             ;
 
         atom ::=
-            | TokTy::IntLit { e0.value.parse::<i32>().unwrap() }
+            | TokTy::IntLit { Box::new(Expr::IntLit(e0.value.parse::<i32>().unwrap())) }
+            | TokTy::Ident { Box::new(Expr::Ident(e0.value.clone())) }
             | "(" expr ")" { e1 }
             ;
     }
@@ -139,6 +183,7 @@ mod peg {
     }
 }
 
+#[derive(Clone)]
 pub enum Stmt {
     If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
     While(Box<Expr>, Box<Stmt>),
@@ -148,6 +193,7 @@ pub enum Stmt {
     Print(Box<Expr>),
 }
 
+#[derive(Clone)]
 pub enum Expr {
     Ident(String),
     IntLit(i32),
@@ -155,6 +201,7 @@ pub enum Expr {
     Sub(Box<Expr>, Box<Expr>),
     Mul(Box<Expr>, Box<Expr>),
     Div(Box<Expr>, Box<Expr>),
+    Mod(Box<Expr>, Box<Expr>),
     Eq(Box<Expr>, Box<Expr>),
     Neq(Box<Expr>, Box<Expr>),
     Gr(Box<Expr>, Box<Expr>),
@@ -169,21 +216,95 @@ pub enum Expr {
 
 struct Interpreter {
     variables: Vec<HashMap<String, i32>>,
+    linenum: usize,
 }
+
+fn btoi(b: bool) -> i32 { if b { 1 } else { 0 } }
+fn itob(i: i32) -> bool { i != 0 }
 
 impl Interpreter {
     fn new() -> Self {
         Self{
             variables: Vec::new(),
+            linenum: 0,
         }
     }
 
-    fn execute(&mut self, stmt: Box<Stmt>) {
-        unimplemented!();
+    fn execute(&mut self, stmt: &Box<Stmt>) {
+        match &**stmt {
+            Stmt::If(cond, then, els) => {
+                if itob(self.evaluate(&cond)) {
+                    self.execute(&then);
+                }
+                else if let Some(els) = els {
+                    self.execute(&els);
+                }
+            },
+
+            Stmt::While(cond, then) => {
+                while itob(self.evaluate(&cond)) {
+                    self.execute(&then);
+                }
+            },
+
+            Stmt::Asgn(name, val) => {
+                let val = self.evaluate(&val);
+                self.set_var(name, val);
+            },
+
+            Stmt::Compound(stmts) => {
+                self.push_scope();
+                for s in stmts {
+                    self.execute(s);
+                }
+                self.pop_scope();
+            },
+
+            Stmt::Expr(expr) => {
+                self.evaluate(&expr);
+            },
+
+            Stmt::Print(expr) => {
+                let val = self.evaluate(&expr);
+                println!("{}", val);
+            },
+
+            _ => unimplemented!(),
+        }
     }
 
-    fn evaluate(&mut self, expr: Box<Expr>) -> i32 {
-        unimplemented!();
+    fn evaluate(&mut self, expr: &Box<Expr>) -> i32 {
+        match &**expr {
+            Expr::Ident(name) => {
+                if name == "read" {
+                    let stdin = io::stdin();
+                    let line1 = stdin.lock().lines().next().unwrap().unwrap();
+                    self.linenum += 1;
+                    line1.parse::<i32>().unwrap()
+                }
+                else {
+                    self.ref_var(&name)
+                }
+            },
+            Expr::IntLit(x) => *x,
+            Expr::Add(l, r) => self.evaluate(&l) + self.evaluate(&r),
+            Expr::Sub(l, r) => self.evaluate(&l) - self.evaluate(&r),
+            Expr::Mul(l, r) => self.evaluate(&l) * self.evaluate(&r),
+            Expr::Div(l, r) => self.evaluate(&l) / self.evaluate(&r),
+            Expr::Mod(l, r) => self.evaluate(&l) % self.evaluate(&r),
+            Expr::Eq(l, r) => btoi(self.evaluate(&l) == self.evaluate(&r)),
+            Expr::Neq(l, r) => btoi(self.evaluate(&l) != self.evaluate(&r)),
+            Expr::Gr(l, r) => btoi(self.evaluate(&l) > self.evaluate(&r)),
+            Expr::Le(l, r) => btoi(self.evaluate(&l) < self.evaluate(&r)),
+            Expr::GrEq(l, r) => btoi(self.evaluate(&l) >= self.evaluate(&r)),
+            Expr::LeEq(l, r) => btoi(self.evaluate(&l) <= self.evaluate(&r)),
+            Expr::And(l, r) => btoi(itob(self.evaluate(&l)) && itob(self.evaluate(&r))),
+            Expr::Or(l, r) => btoi(itob(self.evaluate(&l)) || itob(self.evaluate(&r))),
+            Expr::Neg(l) => -self.evaluate(&l),
+            Expr::Not(l) => btoi(!itob(self.evaluate(&l))),
+
+            _ => unimplemented!(),
+        }
     }
 
     fn ref_var(&mut self, name: &String) -> i32 {
@@ -196,6 +317,12 @@ impl Interpreter {
     }
 
     fn set_var(&mut self, name: &String, val: i32) {
+        for sc in self.variables.iter_mut().rev() {
+            if let Some(v) = sc.get_mut(name) {
+                *v = val;
+                return;
+            }
+        }
         self.variables.last_mut().unwrap().insert(name.clone(), val);
     }
 
@@ -209,22 +336,44 @@ impl Interpreter {
 }
 
 fn main() {
-    let stdin = io::stdin();
-    for line in stdin.lock().lines() {
+    let src = "
+while 1 {
+    n = read
+
+    is_prime = 1
+    i = 2
+    while i < n {
+        if n % i == 0 {
+            is_prime = 0
+        }
+        i = i + 1
+    }
+    if n == 1 {
+        is_prime = 0
+    }
+    print is_prime
+}
+    ";
+    //let stdin = io::stdin();
+    //for line in stdin.lock().lines() {
 
     let mut lexer = TokTy::lexer();
     let mut tokens = Vec::new();
 
-    let m = lexer.modify(&tokens, 0..0, &line.unwrap());
+    //let line = &line.unwrap();
+    let m = lexer.modify(&tokens, 0..0, src);
     tokens.splice(m.erased, m.inserted);
 
     let mut parser = peg::Parser::new();
-    let r = parser.expr(tokens.iter().cloned());
+    let r = parser.program(tokens.iter().cloned());
     if r.is_ok() {
         let ok = r.ok().unwrap();
         let val = ok.value;
         let mlen = ok.matched;
-        println!("Ok: {:?} (matched: {})", val, mlen);
+        println!("Parse succeeded, matched: {}", mlen);
+        let mut interpr = Interpreter::new();
+        interpr.execute(&val);
+        //println!("Ok: {:?} (matched: {})", val, mlen);
     }
     else {
         let err = r.err().unwrap();
@@ -245,5 +394,5 @@ fn main() {
         println!("But got '{}'", err.found_element);
     }
 
-    }
+    //}
 }
