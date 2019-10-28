@@ -10,9 +10,7 @@ use crate::syn_extensions::{parse_parenthesized_fn, parse_bracketed_fn, parse_id
 
 #[derive(Clone)]
 pub struct RuleSet {
-    //pub grammar_name: String,
     pub item_type: Type,
-    pub default_type: Option<Type>,
     pub top_rule: (String, Node),
     pub rules: HashMap<String, (Node, Type)>,
     pub literal_matcher: (),
@@ -120,43 +118,63 @@ impl RuleSet {
 
 // Parse ///////////////////////////////////////////////////////////////////////
 
-/**
- * name: FooBar;
- */
-
-/*
-struct GrammarName {
-    name_tok: Ident,
-    eq: Token![:],
-    name: Ident,
-    semicol: Token![;],
-}
-
-impl Parse for GrammarName {
+impl Parse for RuleSet {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(GrammarName{
-            name_tok: parse_ident(input, "name")?,
-            eq: input.parse()?,
-            name: input.parse()?,
-            semicol: input.parse()?,
+        //let gname: GrammarName = input.parse()?;
+        let itype: ItemType = input.parse()?;
+
+        let decls = input.parse_terminated::<Decl, Token![;]>(Decl::parse)?;
+
+        let mut rules = HashMap::new();
+        let mut top_rule = None;
+        let mut curr_default_ty = None;
+
+        for decl in decls {
+            match decl {
+                Decl::RuleType(RuleType{ ty, .. }) => curr_default_ty = Some(ty),
+
+                Decl::Rule(Rule{ ident, ty, node, .. }) => {
+                    let ident = ident.to_string();
+                    let rty = if let Some(ty) = ty {
+                        ty
+                    }
+                    else if let Some(ty) = curr_default_ty.clone() {
+                        ty
+                    }
+                    else {
+                        panic!("No type for rule '{}'!", ident);
+                    };
+
+                    if top_rule.is_none() {
+                        top_rule = Some((ident.clone(), node.clone()));
+                    }
+                    rules.insert(ident, (node, rty));
+                }
+            }
+        }
+
+        Ok(Self{
+            item_type: itype.ty,
+            top_rule: top_rule.unwrap(),
+            rules,
+            literal_matcher: (),
         })
     }
 }
-*/
 
 /**
- * item: char;
+ * item = char;
  */
-struct GrammarItemType {
+struct ItemType {
     item_tok: Ident,
-    eq: Token![:],
+    eq: Token![=],
     ty: Type,
     semicol: Token![;],
 }
 
-impl Parse for GrammarItemType {
+impl Parse for ItemType {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(GrammarItemType{
+        Ok(Self{
             item_tok: parse_ident(input, "item")?,
             eq: input.parse()?,
             ty: input.parse()?,
@@ -166,23 +184,21 @@ impl Parse for GrammarItemType {
 }
 
 /**
- * type: i32;
+ * type = i32
  */
 
-struct GrammarDefaultType {
+struct RuleType {
     ty_tok: Token![type],
-    eq: Token![:],
+    eq: Token![=],
     ty: Type,
-    semicol: Token![;],
 }
 
-impl Parse for GrammarDefaultType {
+impl Parse for RuleType {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(GrammarDefaultType{
+        Ok(Self{
             ty_tok: input.parse()?,
             eq: input.parse()?,
             ty: input.parse()?,
-            semicol: input.parse()?,
         })
     }
 }
@@ -203,45 +219,6 @@ struct Rule {
     node: Node,
 }
 
-impl Parse for RuleSet {
-    fn parse(input: ParseStream) -> Result<Self> {
-        //let gname: GrammarName = input.parse()?;
-        let itype: GrammarItemType = input.parse()?;
-        let defty = input.parse::<GrammarDefaultType>().ok().map(|gdt| gdt.ty);
-        let nnp = input.parse_terminated::<Rule, Token![;]>(Rule::parse)?;
-        let mut rules = HashMap::new();
-        let mut top_rule = None;
-
-        for (k, vr) in nnp.iter().map(|x| (x.ident.to_string(), x)) {
-            let ty = if vr.ty.is_some() {
-                vr.ty.clone().unwrap()
-            }
-            else if defty.is_some() {
-                defty.clone().unwrap()
-            }
-            else {
-                panic!("No type for rule '{}'!", k);
-            };
-
-            let to_insert = (vr.node.clone(), ty);
-
-            if top_rule.is_none() {
-                top_rule = Some((k.clone(), to_insert.0.clone()));
-            }
-            rules.insert(k, to_insert);
-        }
-
-        Ok(RuleSet{
-            //grammar_name: gname.name.to_string(),
-            item_type: itype.ty,
-            default_type: defty,
-            top_rule: top_rule.unwrap(),
-            rules,
-            literal_matcher: (),
-        })
-    }
-}
-
 impl Parse for Rule {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Rule{
@@ -251,6 +228,26 @@ impl Parse for Rule {
             eq: input.parse()?,
             node: input.parse()?,
         })
+    }
+}
+
+/**
+ * Since we can have alternating type and rule definitions, we need a sum-type above them.
+ */
+
+enum Decl {
+    RuleType(RuleType),
+    Rule(Rule),
+}
+
+impl Parse for Decl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        if let Ok(ty) = RuleType::parse(input) {
+            Ok(Decl::RuleType(ty))
+        }
+        else {
+            Ok(Decl::Rule(Rule::parse(input)?))
+        }
     }
 }
 

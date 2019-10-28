@@ -63,14 +63,14 @@ mod peg {
     // That would make writing blocks of grammar easier
 
     yk_parser!{
-        item: Token<TokTy>;
-        type: Box<Expr>;
+        item = Token<TokTy>;
 
         // Statements
+        type = Box<Stmt>;
 
-        program[Box<Stmt>] ::= compound_stmt;
+        program ::= compound_stmt;
 
-        stmt[Box<Stmt>] ::=
+        stmt ::=
             | if_stmt
             | while_stmt
             | asgn_stmt
@@ -80,29 +80,29 @@ mod peg {
             | "{" compound_stmt "}" { e1 }
             ;
 
-        if_stmt[Box<Stmt>] ::=
+        if_stmt ::=
             | "if" expr stmt "else" stmt { Box::new(Stmt::If(e1, e2, Some(e4))) }
             | "if" expr stmt { Box::new(Stmt::If(e1, e2, None)) }
             ;
 
-        while_stmt[Box<Stmt>] ::=
+        while_stmt ::=
             | "while" expr stmt { Box::new(Stmt::While(e1, e2)) }
             ;
 
-        asgn_stmt[Box<Stmt>] ::=
+        asgn_stmt ::=
             | TokTy::Ident "=" expr { Box::new(Stmt::Asgn(e0.value.clone(), e2)) }
             ;
 
-        compound_stmt[Box<Stmt>] ::=
+        compound_stmt ::=
             | compound_stmt stmt { if let Stmt::Compound(mut ss) = *e0 { ss.push(e1); Box::new(Stmt::Compound(ss)) } else { panic!("No"); } }
             | stmt { Box::new(Stmt::Compound(vec![e0])) }
             ;
 
-        print_stmt[Box<Stmt>] ::=
+        print_stmt ::=
             | "print" expr { Box::new(Stmt::Print(e1)) }
             ;
 
-        fn_stmt[Box<Stmt>] ::=
+        fn_stmt ::=
             | "fn" TokTy::Ident "(" param_list ")" "{" compound_stmt "}" { Box::new(Stmt::Fn(e1.value.clone(), e3, e6)) }
             | "fn" TokTy::Ident "{" compound_stmt "}" { Box::new(Stmt::Fn(e1.value.clone(), Vec::new(), e3)) }
             ;
@@ -112,9 +112,10 @@ mod peg {
             | TokTy::Ident { vec![e0.value.clone()] }
             ;
 
-        ret_stmt[Box<Stmt>] ::= "return" expr { Box::new(Stmt::Return(e1)) };
+        ret_stmt ::= "return" expr { Box::new(Stmt::Return(e1)) };
 
         // Expressions
+        type = Box<Expr>;
 
         expr ::= or_expr;
 
