@@ -249,6 +249,17 @@ impl ParseErr {
     pub fn furthest_look(&self) -> usize {
         self.furthest_look
     }
+
+    pub fn merge_element_into(&mut self, from_r: &'static str, to_r: &'static str) {
+        let from = self.elements.remove(from_r);
+        let to = self.elements.get_mut(to_r);
+
+        match (to, from) {
+            (Some(to), Some(from)) => to.merge(from),
+            (None, Some(from)) => { self.elements.insert(to_r, from); },
+            (None, None) | (Some(_), None) => {},
+        }
+    }
 }
 
 impl ParseErrElement {
@@ -256,5 +267,9 @@ impl ParseErrElement {
         let mut expected_elements = HashSet::new();
         expected_elements.insert(element);
         Self{ rule, expected_elements }
+    }
+
+    fn merge(&mut self, src: ParseErrElement) {
+        self.expected_elements.extend(src.expected_elements);
     }
 }

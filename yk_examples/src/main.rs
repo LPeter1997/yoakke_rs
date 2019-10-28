@@ -380,7 +380,7 @@ impl Interpreter {
 
 fn main() {
     let src = "
-fn foo(x) {}
+fn foo(x) { y =  }
 
 while 1 {
     n = read

@@ -483,9 +483,22 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenS
             let fname = quote::format_ident!("parse_{}", id);
             let code = quote!{{
                 let mut tmp_res = self.#fname(src.clone(), idx);
-                if let ParseResult::Err(err) = &mut tmp_res {
-                    // If it's an error and we haven't looked ahead anything, swap out the context in the error
-                    println!("Furthest: {}", err.furthest_look);
+                // If there is an error but the furthest lookahead is one, the context can change
+                // to the current rule to make it clearer
+                match &mut tmp_res {
+                    ParseResult::Ok(ok) => {
+                        if let Some(err) = &mut ok.furthest_error {
+                            if err.furthest_look == 1 {
+                                err.merge_element_into(#id, curr_rule);
+                            }
+                        }
+                    },
+
+                    ParseResult::Err(err) => {
+                        if err.furthest_look == 1 {
+                            err.merge_element_into(#id, curr_rule);
+                        }
+                    }
                 }
                 tmp_res
             }};
