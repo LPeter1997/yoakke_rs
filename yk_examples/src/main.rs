@@ -39,16 +39,15 @@ pub enum TokTy {
 
     #[token("=")] Asgn,
 
-    // TODO: Builds without these
-    // But there's a weird range (larger..=smaller => ...)
-    // in Ident matching status when these are here
-    /*#[token("if")] KwIf,
+    #[token("if")] KwIf,
     #[token("else")] KwElse,
     #[token("while")] KwWhile,
-    #[token("print")] KwPrint,*/
+    #[token("print")] KwPrint,
 
     #[token("{")] LeftBrace,
     #[token("}")] RightBrace,
+
+    #[token(",")] Comma,
 }
 
 mod peg {
@@ -75,8 +74,9 @@ mod peg {
             | if_stmt
             | while_stmt
             | asgn_stmt
-            //| expr_stmt
             | print_stmt
+            | fn_stmt
+            | ret_stmt
             | "{" compound_stmt "}" { e1 }
             ;
 
@@ -101,6 +101,18 @@ mod peg {
         print_stmt[Box<Stmt>] ::=
             | "print" expr { Box::new(Stmt::Print(e1)) }
             ;
+
+        fn_stmt[Box<Stmt>] ::=
+            | "fn" TokTy::Ident "(" param_list ")" "{" compound_stmt "}" { Box::new(Stmt::Fn(e1.value.clone(), e3, e6)) }
+            | "fn" TokTy::Ident "{" compound_stmt "}" { Box::new(Stmt::Fn(e1.value.clone(), Vec::new(), e3)) }
+            ;
+
+        param_list[Vec<String>] ::=
+            | param_list TokTy::Ident { let mut e0 = e0; e0.push(e1.value.clone()); e0 }
+            | TokTy::Ident { vec![e0.value.clone()] }
+            ;
+
+        ret_stmt[Box<Stmt>] ::= "return" expr { Box::new(Stmt::Return(e1)) };
 
         // Expressions
 
@@ -191,6 +203,8 @@ pub enum Stmt {
     Compound(Vec<Box<Stmt>>),
     Expr(Box<Expr>),
     Print(Box<Expr>),
+    Fn(String, Vec<String>, Box<Stmt>),
+    Return(Box<Expr>),
 }
 
 #[derive(Clone)]
@@ -214,9 +228,39 @@ pub enum Expr {
     Not(Box<Expr>),
 }
 
-struct Interpreter {
+struct StackFrame {
     variables: Vec<HashMap<String, i32>>,
-    linenum: usize,
+}
+
+impl StackFrame {
+    fn new() -> Self {
+        Self{ variables: Vec::new() }
+    }
+
+    fn ref_var(&mut self, name: &String) -> Option<&mut i32> {
+        for sc in self.variables.iter_mut().rev() {
+            if let Some(v) = sc.get_mut(name) {
+                return Some(v);
+            }
+        }
+        return None;
+    }
+
+    fn set_var(&mut self, name: &String, val: i32) {
+        self.variables.last_mut().unwrap().insert(name.clone(), val);
+    }
+
+    fn push_scope(&mut self) {
+        self.variables.push(HashMap::new());
+    }
+
+    fn pop_scope(&mut self) {
+        self.variables.pop();
+    }
+}
+
+struct Interpreter {
+    stack: Vec<StackFrame>,
 }
 
 fn btoi(b: bool) -> i32 { if b { 1 } else { 0 } }
@@ -224,10 +268,7 @@ fn itob(i: i32) -> bool { i != 0 }
 
 impl Interpreter {
     fn new() -> Self {
-        Self{
-            variables: Vec::new(),
-            linenum: 0,
-        }
+        Self{ stack: Vec::new() }
     }
 
     fn execute(&mut self, stmt: &Box<Stmt>) {
@@ -253,11 +294,11 @@ impl Interpreter {
             },
 
             Stmt::Compound(stmts) => {
-                self.push_scope();
+                self.stack.last_mut().unwrap().push_scope();
                 for s in stmts {
                     self.execute(s);
                 }
-                self.pop_scope();
+                self.stack.last_mut().unwrap().pop_scope();
             },
 
             Stmt::Expr(expr) => {
@@ -279,7 +320,6 @@ impl Interpreter {
                 if name == "read" {
                     let stdin = io::stdin();
                     let line1 = stdin.lock().lines().next().unwrap().unwrap();
-                    self.linenum += 1;
                     line1.parse::<i32>().unwrap()
                 }
                 else {
@@ -308,30 +348,32 @@ impl Interpreter {
     }
 
     fn ref_var(&mut self, name: &String) -> i32 {
-        for sc in self.variables.iter().rev() {
-            if let Some(v) = sc.get(name) {
-                return *v;
-            }
+        if let Some(v) = self.stack.last_mut().unwrap().ref_var(name) {
+            *v
         }
-        panic!("Undefined variable {}!", name);
+        else {
+            *self.stack.first_mut().unwrap().ref_var(name).unwrap_or_else(|| panic!("Undefined variable {}!", name))
+        }
     }
 
     fn set_var(&mut self, name: &String, val: i32) {
-        for sc in self.variables.iter_mut().rev() {
-            if let Some(v) = sc.get_mut(name) {
-                *v = val;
-                return;
-            }
+        if let Some(v) = self.stack.last_mut().unwrap().ref_var(name) {
+            *v = val;
         }
-        self.variables.last_mut().unwrap().insert(name.clone(), val);
+        else if let Some(v) = self.stack.first_mut().unwrap().ref_var(name) {
+            *v = val;
+        }
+        else {
+            self.stack.last_mut().unwrap().set_var(name, val);
+        }
     }
 
-    fn push_scope(&mut self) {
-        self.variables.push(HashMap::new());
+    fn push_stack(&mut self) {
+        self.stack.push(StackFrame::new());
     }
 
-    fn pop_scope(&mut self) {
-        self.variables.pop();
+    fn pop_stack(&mut self) {
+        self.stack.pop();
     }
 }
 
@@ -372,7 +414,9 @@ while 1 {
         let mlen = ok.matched;
         println!("Parse succeeded, matched: {}", mlen);
         let mut interpr = Interpreter::new();
+        interpr.push_stack();
         interpr.execute(&val);
+        interpr.pop_stack();
         //println!("Ok: {:?} (matched: {})", val, mlen);
     }
     else {

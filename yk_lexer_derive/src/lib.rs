@@ -105,6 +105,14 @@ pub fn yk_lexer(item: TokenStream) -> TokenStream {
                 let lower = to_lower_inclusive_u32(&interval.lower);
                 let upper = to_upper_inclusive_u32(&interval.upper);
 
+                if lower > upper {
+                    // We need this because there can be ranges like ('o'; 'p')
+                    // which turns out to be x+1..=x in inclusive form
+                    // This is potentially completely legal in the interval library
+                    // but doesn't make sense here, as it's empty.
+                    continue;
+                }
+
                 let arm_pattern = match (lower, upper) {
                     (Some(a), Some(b)) => quote!{ #a..=#b },
                     (Some(a), None) => quote!{ #a.. },
