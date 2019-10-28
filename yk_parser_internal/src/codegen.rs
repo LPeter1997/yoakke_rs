@@ -487,16 +487,22 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenS
                 // to the current rule to make it clearer
                 match &mut tmp_res {
                     ParseResult::Ok(ok) => {
+                        let mut next_err = None;
                         if let Some(err) = &mut ok.furthest_error {
                             if err.furthest_look == 1 {
-                                err.merge_element_into(#id, curr_rule);
+                                //err.merge_element_into(#id, curr_rule);
+                                next_err =
+                                    Some(ParseErr::single(1, err.found_element.clone(), curr_rule, #id.into()));
                             }
+                        }
+                        if next_err.is_some() {
+                            ok.furthest_error = next_err;
                         }
                     },
 
                     ParseResult::Err(err) => {
                         if err.furthest_look == 1 {
-                            err.merge_element_into(#id, curr_rule);
+                            *err = ParseErr::single(1, err.found_element.clone(), curr_rule, #id.into());
                         }
                     }
                 }

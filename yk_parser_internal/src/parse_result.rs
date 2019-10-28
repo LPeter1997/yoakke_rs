@@ -250,7 +250,7 @@ impl ParseErr {
         self.furthest_look
     }
 
-    pub fn merge_element_into(&mut self, from_r: &'static str, to_r: &'static str) {
+    /*pub fn merge_element_into(&mut self, from_r: &'static str, to_r: &'static str) {
         let from = self.elements.remove(from_r);
         let to = self.elements.get_mut(to_r);
 
@@ -259,7 +259,7 @@ impl ParseErr {
             (None, Some(from)) => { self.elements.insert(to_r, from); },
             (None, None) | (Some(_), None) => {},
         }
-    }
+    }*/
 }
 
 impl ParseErrElement {
@@ -269,7 +269,7 @@ impl ParseErrElement {
         Self{ rule, expected_elements }
     }
 
-    fn merge(&mut self, src: ParseErrElement) {
+    /*fn merge(&mut self, src: ParseErrElement) {
         self.expected_elements.extend(src.expected_elements);
-    }
+    }*/
 }
