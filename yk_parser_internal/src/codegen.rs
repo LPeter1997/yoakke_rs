@@ -481,9 +481,14 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenS
         let id = lit.segments[0].ident.to_string();
         if let Some((_, ty)) = rs.rules.get(&id) {
             let fname = quote::format_ident!("parse_{}", id);
-            let code = quote!{
-                self.#fname(src.clone(), idx)
-            };
+            let code = quote!{{
+                let mut tmp_res = self.#fname(src.clone(), idx);
+                if let ParseResult::Err(err) = &mut tmp_res {
+                    // If it's an error and we haven't looked ahead anything, swap out the context in the error
+                    println!("Furthest: {}", err.furthest_look);
+                }
+                tmp_res
+            }};
             return (code, vec![ty.clone()]);
         }
     }
@@ -501,11 +506,11 @@ fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (T
             }
             else {
                 let got = Self::show_found(&v);
-                ParseErr::single(idx, got, curr_rule, Self::show_expected(&#tok)).into()
+                ParseErr::single(1, got, curr_rule, Self::show_expected(&#tok)).into()
             }
         }
         else {
-            ParseErr::single(idx, "end of input".into(), curr_rule, Self::show_expected(&#tok)).into()
+            ParseErr::single(1, "end of input".into(), curr_rule, Self::show_expected(&#tok)).into()
         }
     }};
     (code, vec![rs.item_type.clone()])

@@ -67,29 +67,33 @@ impl <T> ParseResult<T> {
     pub fn unify_alternatives(a: Self, b: Self) -> Self {
         match (a, b) {
             (ParseResult::Ok(mut a), ParseResult::Ok(mut b)) => {
+                let err = Self::unify_alternative_errors_opt(a.furthest_error, b.furthest_error);
                 if a.matched > b.matched {
-                    a.furthest_error = Self::unify_errors_in_oks(a.furthest_error, b.furthest_error);
+                    a.furthest_error = err;
                     ParseResult::Ok(a)
                 }
                 else if b.matched > a.matched {
-                    b.furthest_error = Self::unify_errors_in_oks(a.furthest_error, b.furthest_error);
+                    b.furthest_error = err;
                     ParseResult::Ok(b)
                 }
                 else {
                     // TODO: Warn about ambiguity?
-                    a.furthest_error = Self::unify_errors_in_oks(a.furthest_error, b.furthest_error);
+                    // We arbitrarily choose the first one here
+                    a.furthest_error = err;
                     ParseResult::Ok(a)
                 }
             },
 
               (ParseResult::Ok(mut a), ParseResult::Err(b))
             | (ParseResult::Err(b), ParseResult::Ok(mut a)) => {
-                a.furthest_error = Some(Self::unify_errors_in_ok_err(a.furthest_error, b));
+                let err = Self::unify_alternative_errors_opt(a.furthest_error, Some(b));
+                assert!(err.is_some());
+                a.furthest_error = err;
                 ParseResult::Ok(a)
             },
 
             (ParseResult::Err(a), ParseResult::Err(b)) =>
-                ParseResult::Err(Self::unify_errors(a, b)),
+                ParseResult::Err(Self::unify_alternative_errors(a, b)),
         }
     }
 
@@ -98,45 +102,53 @@ impl <T> ParseResult<T> {
             ParseResult::Ok(b) => {
                 ParseResult::Ok(ParseOk{
                     matched: a.matched + b.matched,
-                    furthest_error: Self::unify_errors_in_oks(a.furthest_error, b.furthest_error),
+                    furthest_error: Self::unify_sequence_errors_opt(a.matched, a.furthest_error, b.furthest_error),
                     value: (a.value, b.value),
                 })
             },
 
             ParseResult::Err(b) => {
-                ParseResult::Err(Self::unify_errors_in_ok_err(a.furthest_error, b))
+                let err = Self::unify_sequence_errors_opt(a.matched, a.furthest_error, Some(b));
+                assert!(err.is_some());
+                ParseResult::Err(err.unwrap())
             }
         }
     }
 
-    fn unify_errors_in_oks(a: Option<ParseErr>, b: Option<ParseErr>) -> Option<ParseErr> {
-        if a.is_some() && b.is_some() {
-            let aerr = a.unwrap();
-            let berr = b.unwrap();
-            Some(Self::unify_errors(aerr, berr))
-        }
-        else if a.is_some() {
-            a
-        }
-        else if b.is_some() {
-            b
-        }
-        else {
-            None
+    fn unify_sequence_errors_opt(am: usize, a: Option<ParseErr>, b: Option<ParseErr>) -> Option<ParseErr> {
+        // Add the match offset to the right-hand side
+        let b = match b {
+            Some(mut b) => {
+                b.furthest_look += am;
+                Some(b)
+            }
+            None => None,
+        };
+
+        match (a, b) {
+            (Some(a), Some(b)) => Some(Self::unify_sequence_errors(a, b)),
+
+              (Some(a), None)
+            | (None, Some(a)) => Some(a),
+
+            (None, None) => None,
         }
     }
 
-    fn unify_errors_in_ok_err(a: Option<ParseErr>, b: ParseErr) -> ParseErr {
-        if a.is_some() {
-            let aerr = a.unwrap();
-            Self::unify_errors(aerr, b)
-        }
-        else {
-            b
+    fn unify_alternative_errors_opt(a: Option<ParseErr>, b: Option<ParseErr>) -> Option<ParseErr> {
+        match (a, b) {
+            (Some(a), Some(b)) => Some(Self::unify_alternative_errors(a, b)),
+
+              (Some(a), None)
+            | (None, Some(a)) => Some(a),
+
+            (None, None) => None,
         }
     }
 
-    fn unify_errors(a: ParseErr, b: ParseErr) -> ParseErr {
+    // TODO: Same things
+
+    fn unify_alternative_errors(a: ParseErr, b: ParseErr) -> ParseErr {
         if a.furthest_look > b.furthest_look {
             a
         }
@@ -145,30 +157,48 @@ impl <T> ParseResult<T> {
         }
         else {
             // We unify the errors
-            // Special case if one is an empty element
-            if a.found_element == "" {
-                b
-            }
-            else if b.found_element == "" {
-                a
-            }
-            else {
-                let mut elements = a.elements;
-                for (k, v) in b.elements {
-                    if elements.contains_key(&k) {
-                        let err = elements.get_mut(&k).unwrap();
-                        err.expected_elements.extend(v.expected_elements);
-                    }
-                    else {
-                        elements.insert(k, v);
-                    }
-                }
+            Self::unify_errors(a, b)
+        }
+    }
 
-                ParseErr{
-                    furthest_look: a.furthest_look,
-                    found_element: a.found_element,
-                    elements
+    fn unify_sequence_errors(a: ParseErr, b: ParseErr) -> ParseErr {
+        if a.furthest_look > b.furthest_look {
+            a
+        }
+        else if b.furthest_look > a.furthest_look {
+            b
+        }
+        else {
+            // We unify the errors
+            Self::unify_errors(a, b)
+        }
+    }
+
+    fn unify_errors(a: ParseErr, b: ParseErr) -> ParseErr {
+        // Special case if one is an empty element
+        if a.found_element == "" {
+            b
+        }
+        else if b.found_element == "" {
+            a
+        }
+        else {
+            let mut elements = a.elements;
+            for (k, v) in b.elements {
+                // TODO: We could use the entry API?
+                if elements.contains_key(&k) {
+                    let err = elements.get_mut(&k).unwrap();
+                    err.expected_elements.extend(v.expected_elements);
                 }
+                else {
+                    elements.insert(k, v);
+                }
+            }
+
+            ParseErr{
+                furthest_look: a.furthest_look,
+                found_element: a.found_element,
+                elements
             }
         }
     }

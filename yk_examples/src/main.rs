@@ -175,7 +175,7 @@ mod peg {
         }
 
         fn show_expected(t: &TokTy) -> String {
-            "<TokTy>".into()
+            format!("{:?}", t)
         }
     }
 
