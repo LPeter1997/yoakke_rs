@@ -87,43 +87,43 @@ mod peg {
             | print_stmt
             | fn_stmt
             | ret_stmt
-            | "{" compound_stmt "}" { e1 }
+            | "{" compound_stmt "}" { $1 }
             ;
 
         if_stmt ::=
-            | "if" expr stmt "else" stmt { Box::new(Stmt::If(e1, e2, Some(e4))) }
-            | "if" expr stmt { Box::new(Stmt::If(e1, e2, None)) }
+            | "if" expr stmt "else" stmt { Box::new(Stmt::If($1, $2, Some($4))) }
+            | "if" expr stmt { Box::new(Stmt::If($1, $2, None)) }
             ;
 
         while_stmt ::=
-            | "while" expr stmt { Box::new(Stmt::While(e1, e2)) }
+            | "while" expr stmt { Box::new(Stmt::While($1, $2)) }
             ;
 
         asgn_stmt ::=
-            | TokTy::Ident "=" expr { Box::new(Stmt::Asgn(e0.value.clone(), e2)) }
+            | TokTy::Ident "=" expr { Box::new(Stmt::Asgn($0.value.clone(), $2)) }
             ;
 
         compound_stmt ::=
-            | compound_stmt stmt { if let Stmt::Compound(mut ss) = *e0 { ss.push(e1); Box::new(Stmt::Compound(ss)) } else { panic!("No"); } }
-            | stmt { Box::new(Stmt::Compound(vec![e0])) }
+            | compound_stmt stmt { if let Stmt::Compound(mut ss) = *$0 { ss.push($1); Box::new(Stmt::Compound(ss)) } else { panic!("No"); } }
+            | stmt { Box::new(Stmt::Compound(vec![$0])) }
             | epsilon { Box::new(Stmt::Compound(vec![])) }
             ;
 
         print_stmt ::=
-            | "print" expr { Box::new(Stmt::Print(e1)) }
+            | "print" expr { Box::new(Stmt::Print($1)) }
             ;
 
         fn_stmt ::=
-            | "fn" TokTy::Ident "(" param_list ")" "{" compound_stmt "}" { Box::new(Stmt::Fn(e1.value.clone(), e3, e6)) }
-            | "fn" TokTy::Ident "{" compound_stmt "}" { Box::new(Stmt::Fn(e1.value.clone(), Vec::new(), e3)) }
+            | "fn" TokTy::Ident "(" param_list ")" "{" compound_stmt "}" { Box::new(Stmt::Fn($1.value.clone(), $3, $6)) }
+            | "fn" TokTy::Ident "{" compound_stmt "}" { Box::new(Stmt::Fn($1.value.clone(), Vec::new(), $3)) }
             ;
 
         param_list[Vec<String>] ::=
-            | param_list TokTy::Ident { let mut e0 = e0; e0.push(e1.value.clone()); e0 }
-            | TokTy::Ident { vec![e0.value.clone()] }
+            | param_list TokTy::Ident { let mut e0 = $0; e0.push($1.value.clone()); e0 }
+            | TokTy::Ident { vec![$0.value.clone()] }
             ;
 
-        ret_stmt ::= "return" expr { Box::new(Stmt::Return(e1)) };
+        ret_stmt ::= "return" expr { Box::new(Stmt::Return($1)) };
 
         // Expressions
         type = Box<Expr>;
@@ -131,52 +131,52 @@ mod peg {
         expr ::= or_expr;
 
         or_expr ::=
-            | or_expr "or" and_expr { Box::new(Expr::Or(e0, e2)) }
+            | or_expr "or" and_expr { Box::new(Expr::Or($0, $2)) }
             | and_expr
             ;
 
         and_expr ::=
-            | and_expr "and" eq_expr { Box::new(Expr::And(e0, e2)) }
+            | and_expr "and" eq_expr { Box::new(Expr::And($0, $2)) }
             | eq_expr
             ;
 
         eq_expr ::=
-            | eq_expr "==" rel_expr { Box::new(Expr::Eq(e0, e2)) }
-            | eq_expr "!=" rel_expr { Box::new(Expr::Neq(e0, e2)) }
+            | eq_expr "==" rel_expr { Box::new(Expr::Eq($0, $2)) }
+            | eq_expr "!=" rel_expr { Box::new(Expr::Neq($0, $2)) }
             | rel_expr
             ;
 
         rel_expr ::=
-            | rel_expr ">" add_expr { Box::new(Expr::Gr(e0, e2)) }
-            | rel_expr "<" add_expr { Box::new(Expr::Le(e0, e2)) }
-            | rel_expr ">=" add_expr { Box::new(Expr::GrEq(e0, e2)) }
-            | rel_expr "<=" add_expr { Box::new(Expr::LeEq(e0, e2)) }
+            | rel_expr ">" add_expr { Box::new(Expr::Gr($0, $2)) }
+            | rel_expr "<" add_expr { Box::new(Expr::Le($0, $2)) }
+            | rel_expr ">=" add_expr { Box::new(Expr::GrEq($0, $2)) }
+            | rel_expr "<=" add_expr { Box::new(Expr::LeEq($0, $2)) }
             | add_expr
             ;
 
         add_expr ::=
-            | add_expr "+" mul_expr { Box::new(Expr::Add(e0, e2)) }
-            | add_expr "-" mul_expr { Box::new(Expr::Sub(e0, e2)) }
+            | add_expr "+" mul_expr { Box::new(Expr::Add($0, $2)) }
+            | add_expr "-" mul_expr { Box::new(Expr::Sub($0, $2)) }
             | mul_expr
             ;
 
         mul_expr ::=
-            | mul_expr "*" unary_expr { Box::new(Expr::Mul(e0, e2)) }
-            | mul_expr "/" unary_expr { Box::new(Expr::Div(e0, e2)) }
-            | mul_expr "%" unary_expr { Box::new(Expr::Mod(e0, e2)) }
+            | mul_expr "*" unary_expr { Box::new(Expr::Mul($0, $2)) }
+            | mul_expr "/" unary_expr { Box::new(Expr::Div($0, $2)) }
+            | mul_expr "%" unary_expr { Box::new(Expr::Mod($0, $2)) }
             | unary_expr
             ;
 
         unary_expr ::=
-            | "!" unary_expr { Box::new(Expr::Not(e1)) }
-            | "-" unary_expr { Box::new(Expr::Neg(e1)) }
+            | "!" unary_expr { Box::new(Expr::Not($1)) }
+            | "-" unary_expr { Box::new(Expr::Neg($1)) }
             | atom
             ;
 
         atom ::=
-            | TokTy::IntLit { Box::new(Expr::IntLit(e0.value.parse::<i32>().unwrap())) }
-            | TokTy::Ident { Box::new(Expr::Ident(e0.value.clone())) }
-            | "(" expr ")" { e1 }
+            | TokTy::IntLit { Box::new(Expr::IntLit($0.value.parse::<i32>().unwrap())) }
+            | TokTy::Ident { Box::new(Expr::Ident($0.value.clone())) }
+            | "(" expr ")" { $1 }
             ;
     }
 
@@ -391,8 +391,6 @@ impl Interpreter {
 
 fn main() {
     let src = "
-fn foo(x) { }
-
 while 1 {
     n = read
 

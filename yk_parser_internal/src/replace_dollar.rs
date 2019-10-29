@@ -32,7 +32,7 @@ pub fn replace_dollar(src: TokenStream, mappings: &HashMap<usize, String>) -> To
                     let lit_int = lit_str.parse::<usize>().unwrap();
                     let subst = mappings.get(&lit_int).unwrap();
                     prev_dollar = None;
-                    result.append(TokenTree::Literal(Literal::string(subst)));
+                    result.append(TokenTree::Ident(Ident::new(&subst, lit.span())));
                 }
                 else {
                     // Not number, just dump it

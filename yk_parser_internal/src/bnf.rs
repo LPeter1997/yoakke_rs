@@ -3,10 +3,13 @@
  */
 
 use std::collections::{HashMap, HashSet};
+use proc_macro2::TokenStream;
+use quote::TokenStreamExt;
 use syn::{Result, Token, Expr, Block, Ident, Lit, Path, Type};
 use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
-use crate::syn_extensions::{parse_parenthesized_fn, parse_bracketed_fn, parse_ident};
+use syn::token::Brace;
+use crate::syn_extensions::*;
 
 #[derive(Clone)]
 pub struct RuleSet {
@@ -20,7 +23,7 @@ pub struct RuleSet {
 pub enum Node {
     Transformation{
         subnode: Box<Node>,
-        action: Block,
+        action: (Brace, TokenStream),
     },
 
     Alternative{
@@ -280,7 +283,8 @@ impl Node {
 
     fn parse_toplevel_sequence(input: ParseStream) -> Result<Box<Node>> {
         let subnode = Self::parse_sequence(input)?;
-        let action = input.parse::<Block>();
+
+        let action = Self::parse_transformation(input);
         if action.is_ok() {
             Ok(Box::new(Node::Transformation{ subnode, action: action.unwrap(), }))
         }
@@ -324,6 +328,20 @@ impl Node {
             let (_, content) = parse_parenthesized_fn(input, Self::parse_alternative)?;
             Ok(content)
         }
+    }
+
+    fn parse_transformation(input: ParseStream) -> Result<(Brace, TokenStream)> {
+        parse_braced_fn(input, |input| {
+            input.step(|cur| {
+                let mut ts = TokenStream::new();
+                let mut rest = *cur;
+                while let Some((tt, next)) = rest.token_tree() {
+                    ts.append(tt);
+                    rest = next;
+                }
+                Ok((ts, rest))
+            })
+        })
     }
 }
 

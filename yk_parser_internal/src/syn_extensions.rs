@@ -4,7 +4,7 @@
 
 use syn::{Result, Ident, Error};
 use syn::parse::ParseStream;
-use syn::token::{Paren, Bracket};
+use syn::token::{Paren, Bracket, Brace};
 
 pub fn parse_parenthesized_fn<F, T>(input: ParseStream, mut parser: F)
     -> Result<(Paren, T)> where F : FnMut(ParseStream) -> Result<T> {
@@ -20,6 +20,15 @@ pub fn parse_bracketed_fn<F, T>(input: ParseStream, mut parser: F)
 
     let content;
     let paren = syn::bracketed!(content in input);
+    let inner = parser(&content)?;
+    Ok((paren, inner))
+}
+
+pub fn parse_braced_fn<F, T>(input: ParseStream, mut parser: F)
+    -> Result<(Brace, T)> where F : FnMut(ParseStream) -> Result<T> {
+
+    let content;
+    let paren = syn::braced!(content in input);
     let inner = parser(&content)?;
     Ok((paren, inner))
 }

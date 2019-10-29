@@ -2,12 +2,14 @@
  * Code generation from the BNF AST.
  */
 
-use std::time::SystemTime;
+use std::collections::HashMap;
 use proc_macro2::TokenStream;
 use quote::{quote, format_ident, ToTokens};
 use syn::{Ident, Block, Lit, Path, Type};
+use syn::token::Brace;
 use crate::bnf;
 use crate::parse_result::*;
+use crate::replace_dollar::replace_dollar;
 
 struct GeneratedRule {
     parser_fn: TokenStream,
@@ -379,19 +381,31 @@ fn generate_code_node(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
 }
 
 fn generate_code_transformation(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
-    node: &bnf::Node, action: &Block) -> (TokenStream, Vec<Type>) {
+    node: &bnf::Node, (_, body): &(Brace, TokenStream)) -> (TokenStream, Vec<Type>) {
 
     assert_eq!(counter, 0);
 
     let (code, types) = generate_code_node(rs, ret_ty, counter, node);
 
     let params: Vec<_> = types.iter().enumerate().map(|(i, ty)| {
-        let ident = quote::format_ident!("e{}", i);
+        let ident = quote::format_ident!("yk_param_{}", i);
         quote!{ #ident: #ty }
     }).collect();
     let params = quote!{ #(#params),* };
     let param_tys: Vec<_> = types.iter().map(|ty| quote!{ #ty }).collect();
     let param_tys = quote!{ #(#param_tys),* };
+
+    // We need to create a Block from the passed in brace and token stream
+    // First we need to substitute every $<integer> to a proper identifier
+    // Create a substitution map
+    let subst_map: HashMap<_, _> = (0..types.len()).enumerate()
+        .map(|(i, _)| (i, format!("yk_param_{}", i)))
+        .collect();
+    let body = replace_dollar(body.clone(), &subst_map);
+    let body = quote!{ { #body } };
+    let action: Block = syn::parse2(body).unwrap();
+
+    ///////////////////////////////////////////////////////////////////////
 
     let param_names = param_list(0..types.len());
     let closure = quote!{ |#params| -> #ret_ty #action };
@@ -553,6 +567,6 @@ fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (T
 // Helpers
 
 fn param_list(r: std::ops::Range<usize>) -> TokenStream {
-    let params: Vec<_> = r.map(|x| quote::format_ident!("e{}", x)).collect();
+    let params: Vec<_> = r.map(|x| quote::format_ident!("yk_param_{}", x)).collect();
     quote!{ #(#params),* }
 }
