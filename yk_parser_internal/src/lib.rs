@@ -10,6 +10,7 @@ mod parse_result;
 pub mod drec;
 pub mod irec;
 mod r#match;
+mod replace_dollar;
 
 pub use codegen::generate_code;
 pub use parse_result::{ParseResult, ParseOk, ParseErr};
