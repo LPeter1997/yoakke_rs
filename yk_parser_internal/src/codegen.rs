@@ -444,7 +444,9 @@ fn generate_code_sequence(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
             // Overwrite positional data for the next part's invocation
             let src = {
                 let mut src = src.clone();
-                src.nth(ok.matched - 1);
+                if ok.matched > 0 {
+                    src.nth(ok.matched - 1);
+                }
                 src
             };
             let idx = idx + ok.matched;
@@ -476,10 +478,11 @@ fn generate_code_lit(rs: &bnf::RuleSet, counter: usize, lit: &Lit) -> (TokenStre
 
 fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenStream, Vec<Type>) {
 
-    // Rule identifier
     if lit.leading_colon.is_none() && lit.segments.len() == 1 {
         let id = lit.segments[0].ident.to_string();
+
         if let Some((_, ty)) = rs.rules.get(&id) {
+            // Rule identifier
             let fname = quote::format_ident!("parse_{}", id);
             let code = quote!{{
                 let mut tmp_res = self.#fname(src.clone(), idx);
@@ -509,6 +512,18 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenS
                 tmp_res
             }};
             return (code, vec![ty.clone()]);
+        }
+        // TODO: Is this the best symbol for it?
+        else if id == "epsilon" {
+            // Empty aceptance
+            let code = quote!{
+                ParseOk{ matched: 0, furthest_error: None, value: () }.into()
+            };
+            let unit_ty = Type::Tuple(syn::TypeTuple{
+                paren_token: syn::token::Paren{ span: lit.segments[0].ident.span() },
+                elems: syn::punctuated::Punctuated::new()
+            });
+            return (code, vec![unit_ty]);
         }
     }
 

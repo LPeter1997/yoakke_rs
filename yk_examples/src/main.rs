@@ -55,12 +55,22 @@ mod peg {
     use yk_parser::yk_parser;
     use yk_lexer::Token;
 
-    // TODO: We could make the macro able to change types midway, like
-    // type: xyz;
-    // rules...
-    // type: ijk;
-    // rules...
-    // That would make writing blocks of grammar easier
+    /*
+     * Note: Epsilon transitions are dangerous...
+     * Maybe a bug?
+     *
+     * If I write:
+     *
+     * foo ::=
+     *       | foo bar
+     *       | epsilon
+     *       ;
+     *
+     * It will only match a single 'bar', since left-recursion resolves to the
+     * first alternative and not grow again after a single match.
+     *
+     * This is because the seed is not detected to grow!
+     */
 
     yk_parser!{
         item = Token<TokTy>;
@@ -96,6 +106,7 @@ mod peg {
         compound_stmt ::=
             | compound_stmt stmt { if let Stmt::Compound(mut ss) = *e0 { ss.push(e1); Box::new(Stmt::Compound(ss)) } else { panic!("No"); } }
             | stmt { Box::new(Stmt::Compound(vec![e0])) }
+            | epsilon { Box::new(Stmt::Compound(vec![])) }
             ;
 
         print_stmt ::=
