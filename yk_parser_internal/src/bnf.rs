@@ -43,6 +43,7 @@ pub enum Node {
 pub enum LiteralNode {
     Ident(Path),
     Lit(Lit),
+    Eps,
 }
 
 /**
@@ -74,7 +75,9 @@ impl RuleSet {
             Node::Transformation{ subnode, .. } => Self::left_recursion_impl(subnode, rule, rules, direct, touched),
             Node::Literal(lit) => {
                 match lit {
-                    LiteralNode::Lit(_) => LeftRecursion::None,
+                      LiteralNode::Lit(_)
+                    | LiteralNode::Eps => LeftRecursion::None,
+
                     LiteralNode::Ident(path) => {
                         if path.leading_colon.is_none() && path.segments.len() == 1 {
                             // Simple identifier
@@ -323,6 +326,10 @@ impl Node {
         }
         else if let Ok(path) = input.parse::<Path>() {
             Ok(Box::new(Node::Literal(LiteralNode::Ident(path))))
+        }
+        else if let Ok(_) = input.parse::<Token![$]>() {
+            let _ = parse_ident(input, "epsilon")?;
+            Ok(Box::new(Node::Literal(LiteralNode::Eps)))
         }
         else {
             let (_, content) = parse_parenthesized_fn(input, Self::parse_alternative)?;

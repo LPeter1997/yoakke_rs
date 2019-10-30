@@ -382,6 +382,7 @@ fn generate_code_node(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
         bnf::Node::Literal(lit) => match lit {
             bnf::LiteralNode::Ident(p) => generate_code_ident(rs, counter, p),
             bnf::LiteralNode::Lit(l) => generate_code_lit(rs, counter, l),
+            bnf::LiteralNode::Eps => generate_code_eps(rs, counter),
         },
     }
 }
@@ -533,18 +534,6 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenS
             }};
             return (code, vec![ty.clone()]);
         }
-        // TODO: Is this the best symbol for it?
-        else if id == "epsilon" {
-            // Empty aceptance
-            let code = quote!{
-                ParseOk{ matched: 0, furthest_error: None, value: () }.into()
-            };
-            let unit_ty = Type::Tuple(syn::TypeTuple{
-                paren_token: syn::token::Paren{ span: lit.segments[0].ident.span() },
-                elems: syn::punctuated::Punctuated::new()
-            });
-            return (code, vec![unit_ty]);
-        }
     }
 
     // Some identifier
@@ -568,6 +557,18 @@ fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (T
         }
     }};
     (code, vec![rs.item_type.clone()])
+}
+
+fn generate_code_eps(rs: &bnf::RuleSet, counter: usize) -> (TokenStream, Vec<Type>) {
+    // Empty aceptance
+    let code = quote!{
+        ParseOk{ matched: 0, furthest_error: None, value: () }.into()
+    };
+    let unit_ty = Type::Tuple(syn::TypeTuple{
+        paren_token: syn::token::Paren{ span: proc_macro2::Span::call_site() },
+        elems: syn::punctuated::Punctuated::new()
+    });
+    return (code, vec![unit_ty]);
 }
 
 // Helpers

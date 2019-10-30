@@ -55,22 +55,8 @@ mod peg {
     use yk_parser::yk_parser;
     use yk_lexer::Token;
 
-    /*
-     * Note: Epsilon transitions are dangerous...
-     * Maybe a bug?
-     *
-     * If I write:
-     *
-     * foo ::=
-     *       | foo bar
-     *       | epsilon
-     *       ;
-     *
-     * It will only match a single 'bar', since left-recursion resolves to the
-     * first alternative and not grow again after a single match.
-     *
-     * This is because the seed is not detected to grow!
-     */
+    // TODO: Look through the generated source-spans
+    // to make errors more readable
 
     yk_parser!{
         item = Token<TokTy>;
@@ -105,8 +91,7 @@ mod peg {
 
         compound_stmt ::=
             | compound_stmt stmt { if let Stmt::Compound(mut ss) = *$0 { ss.push($1); Stmt::Compound(ss) } else { panic!("No"); } }
-            | stmt { Stmt::Compound(vec![$0]) }
-            | epsilon { Stmt::Compound(vec![]) }
+            | $epsilon { Stmt::Compound(vec![]) }
             ;
 
         print_stmt ::=
