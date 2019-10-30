@@ -383,6 +383,7 @@ fn generate_code_node(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize,
             bnf::LiteralNode::Ident(p) => generate_code_ident(rs, counter, p),
             bnf::LiteralNode::Lit(l) => generate_code_lit(rs, counter, l),
             bnf::LiteralNode::Eps => generate_code_eps(rs, counter),
+            bnf::LiteralNode::End => generate_code_end(rs, counter),
         },
     }
 }
@@ -557,6 +558,25 @@ fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (T
         }
     }};
     (code, vec![rs.item_type.clone()])
+}
+
+fn generate_code_end(rs: &bnf::RuleSet, counter: usize) -> (TokenStream, Vec<Type>) {
+    let unit_ty = Type::Tuple(syn::TypeTuple{
+        paren_token: syn::token::Paren{ span: proc_macro2::Span::call_site() },
+        elems: syn::punctuated::Punctuated::new()
+    });
+    let code = quote!{{
+        let mut src2 = src.clone();
+        if let Some(v) = src2.next() {
+            let got = Self::show_found(&v);
+            println!("{:?}", v);
+            ParseErr::single(1, got, curr_rule, "end of input".into()).into()
+        }
+        else {
+            ParseOk{ matched: 0, furthest_error: None, value: () }.into()
+        }
+    }};
+    (code, vec![unit_ty])
 }
 
 fn generate_code_eps(rs: &bnf::RuleSet, counter: usize) -> (TokenStream, Vec<Type>) {

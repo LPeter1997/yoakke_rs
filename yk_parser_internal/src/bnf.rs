@@ -44,6 +44,7 @@ pub enum LiteralNode {
     Ident(Path),
     Lit(Lit),
     Eps,
+    End,
 }
 
 /**
@@ -76,6 +77,7 @@ impl RuleSet {
             Node::Literal(lit) => {
                 match lit {
                       LiteralNode::Lit(_)
+                    | LiteralNode::End
                     | LiteralNode::Eps => LeftRecursion::None,
 
                     LiteralNode::Ident(path) => {
@@ -328,8 +330,13 @@ impl Node {
             Ok(Box::new(Node::Literal(LiteralNode::Ident(path))))
         }
         else if let Ok(_) = input.parse::<Token![$]>() {
-            let _ = parse_ident(input, "epsilon")?;
-            Ok(Box::new(Node::Literal(LiteralNode::Eps)))
+            if let Ok(_) = parse_ident(input, "epsilon") {
+                Ok(Box::new(Node::Literal(LiteralNode::Eps)))
+            }
+            else {
+                let _ = parse_ident(input, "end");
+                Ok(Box::new(Node::Literal(LiteralNode::End)))
+            }
         }
         else {
             let (_, content) = parse_parenthesized_fn(input, Self::parse_alternative)?;

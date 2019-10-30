@@ -5,7 +5,7 @@ extern crate yk_parser;
 use std::io::{self, BufRead};
 use std::collections::HashMap;
 use yk_lexer::{Token, TokenType, Lexer};
-use yk_parser::{yk_parser, ParseResult, Match};
+use yk_parser::{yk_parser, ParseResult, ParseErr, Match};
 
 #[derive(Lexer, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TokTy {
@@ -64,7 +64,7 @@ mod peg {
         // Statements
         type = Box<Stmt>;
 
-        program ::= compound_stmt;
+        program ::= compound_stmt $end { $0 };
 
         stmt ::=
             | if_stmt
@@ -374,6 +374,24 @@ impl Interpreter {
     }
 }
 
+fn dump_error(err: &ParseErr) {
+    println!("Err:");
+    for (rule, element) in &err.elements {
+        print!("  While parsing {} expected: ", rule);
+
+        let mut fst = true;
+        for tok in &element.expected_elements {
+            if !fst {
+                print!(" or ");
+            }
+            fst = false;
+            print!("{}", tok);
+        }
+        println!();
+    }
+    println!("But got '{}'", err.found_element);
+}
+
 fn main() {
     let src = "
 while 1 {
@@ -393,20 +411,18 @@ while 1 {
     print is_prime
 }
     ";
-    //let stdin = io::stdin();
-    //for line in stdin.lock().lines() {
 
     let mut lexer = TokTy::lexer();
     let mut tokens = Vec::new();
 
-    //let line = &line.unwrap();
     let m = lexer.modify(&tokens, 0..0, src);
     tokens.splice(m.erased, m.inserted);
 
     let mut parser = peg::Parser::new();
-    let r = parser.program(tokens.iter().cloned());
+    let r = parser.program(tokens.iter().cloned().take_while(|t| t.kind != TokTy::End));
     if r.is_ok() {
         let ok = r.ok().unwrap();
+
         let val = ok.value;
         let mlen = ok.matched;
         println!("Parse succeeded, matched: {}", mlen);
@@ -414,26 +430,9 @@ while 1 {
         interpr.push_stack();
         interpr.execute(&val);
         interpr.pop_stack();
-        //println!("Ok: {:?} (matched: {})", val, mlen);
     }
     else {
         let err = r.err().unwrap();
-        println!("Err:");
-        for (rule, element) in err.elements {
-            print!("  While parsing {} expected: ", rule);
-
-            let mut fst = true;
-            for tok in element.expected_elements {
-                if !fst {
-                    print!(" or ");
-                }
-                fst = false;
-                print!("{}", tok);
-            }
-            println!();
-        }
-        println!("But got '{}'", err.found_element);
+        dump_error(&err);
     }
-
-    //}
 }
