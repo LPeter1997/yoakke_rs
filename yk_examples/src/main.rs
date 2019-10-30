@@ -394,7 +394,7 @@ fn dump_error(err: &ParseErr) {
 
 fn main() {
     let src = "
-while 1 {
+while {
     n = read
 
     is_prime = 1

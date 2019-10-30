@@ -569,7 +569,6 @@ fn generate_code_end(rs: &bnf::RuleSet, counter: usize) -> (TokenStream, Vec<Typ
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
             let got = Self::show_found(&v);
-            println!("{:?}", v);
             ParseErr::single(1, got, curr_rule, "end of input".into()).into()
         }
         else {
