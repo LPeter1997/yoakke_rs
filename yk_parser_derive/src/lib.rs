@@ -20,7 +20,7 @@ pub fn yk_parser(item: TokenStream) -> TokenStream {
     let bnf = parse_macro_input!(item as bnf::RuleSet);
     let code = generate_code(&bnf);
 
-    //println!("{}", code);
+    println!("{}", code);
 
     code.into()
 }

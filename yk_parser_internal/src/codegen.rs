@@ -411,13 +411,8 @@ fn generate_code_transformation(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize
     let closure = quote!{ |#params| -> #ret_ty #action };
 
     let code = quote!{{
-        let res = { #code };
-        if let ParseResult::Ok(ok) = res {
-            ok.map(|(#param_names): (#param_tys)| (#closure)(#param_names)).into()
-        }
-        else {
-            res.err().unwrap().into()
-        }
+        let res: ParseResult<_> = { #code };
+        res.map(|(#param_names): (#param_tys)| (#closure)(#param_names)).into()
     }};
 
     (code, vec![ret_ty.clone()])

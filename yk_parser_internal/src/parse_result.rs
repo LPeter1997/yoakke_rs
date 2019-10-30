@@ -57,6 +57,15 @@ impl <T> ParseResult<T> {
         }
     }
 
+    pub fn map<F, U>(self, f: F) -> ParseResult<U> where F: FnOnce(T) -> U {
+        if let ParseResult::Ok(ok) = self {
+            ok.map(f).into()
+        }
+        else {
+            self.err().unwrap().into()
+        }
+    }
+
     pub fn furthest_look(&self) -> usize {
         match self {
             ParseResult::Ok(ok) => ok.furthest_look(),
