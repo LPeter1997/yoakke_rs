@@ -10,5 +10,6 @@ members = [
     "yk_parser_internal",
     "yk_parser",
     "yk_parser_derive",
+    "yk_confmt",
     "yk_examples",
 ]

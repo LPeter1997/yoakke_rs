@@ -1,6 +1,7 @@
 
 extern crate yk_lexer;
 extern crate yk_parser;
+extern crate yk_confmt;
 
 use std::io::{self, BufRead};
 use std::collections::HashMap;
@@ -389,7 +390,45 @@ impl Interpreter {
     }
 }
 
+#[cfg(windows)]
+#[allow(non_camel_case_types)]
+mod win32_console {
+    pub type DWORD = u64;
+    pub type BOOL = i32;
+
+    pub type HANDLE = *mut ();
+    pub type LPDWORD = *mut DWORD;
+
+    // STD Handles
+    pub const STD_INPUT_HANDLE: DWORD = 4294967286;
+    pub const STD_OUTPUT_HANDLE : DWORD = 4294967285;
+    pub const STD_ERROR_HANDLE : DWORD = 4294967284;
+
+    // Console mode flags
+    pub const ENABLE_VIRTUAL_TERMINAL_PROCESSING: DWORD = 0x0004;
+
+    #[link(name = "kernel32")]
+    extern "stdcall" {
+        pub fn GetStdHandle(nStdHandle: DWORD) -> HANDLE;
+        pub fn GetConsoleMode(hConsoleHandle: HANDLE, lpMode: LPDWORD) -> BOOL;
+        pub fn SetConsoleMode(hConsoleHandle: HANDLE, dwMode: DWORD) -> BOOL;
+    }
+}
+
 fn main() {
+
+
+    unsafe {
+        let h = win32_console::GetStdHandle(win32_console::STD_OUTPUT_HANDLE);
+        let mut m: win32_console::DWORD = 0;
+        win32_console::GetConsoleMode(h, &mut m);
+        m |= win32_console::ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+        win32_console::SetConsoleMode(h, m);
+        println!("\x1B[31mRed");
+    }
+
+    return;
+
     let src = "
 while 1 {
     n = read
