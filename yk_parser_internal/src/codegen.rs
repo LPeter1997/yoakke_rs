@@ -353,7 +353,13 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
 
         fn #apply_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty> where #where_clause {
             let curr_rule = #name;
+            // Enforce a cast if needed
+            let res: ParseResult<_> = { #code };
+            res.map(|ok| -> #ret_ty { ok.into() })
+            /*
+            Without implicit cast:
             { #code }
+            */
         }
     };
 
@@ -408,7 +414,12 @@ fn generate_code_transformation(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize
     ///////////////////////////////////////////////////////////////////////
 
     let param_names = param_list(0..types.len());
+    // Enforce a cast
+    let closure = quote!{ |#params| -> #ret_ty { #action.into() } };
+    /*
+    Without cast:
     let closure = quote!{ |#params| -> #ret_ty #action };
+    */
 
     let code = quote!{{
         let res: ParseResult<_> = { #code };
