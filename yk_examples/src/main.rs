@@ -57,6 +57,9 @@ mod peg {
 
     // TODO: Look through the generated source-spans
     // to make errors more readable
+    // TODO: Make "got" an actual iterator item in the error so we can reference
+    // position.
+    // That would also eliminate the need of "ShowFound"
 
     yk_parser!{
         item = Token<TokTy>;
@@ -394,7 +397,7 @@ fn dump_error(err: &ParseErr) {
 
 fn main() {
     let src = "
-while {
+while 1 {
     n = read
 
     is_prime = 1
