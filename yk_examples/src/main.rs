@@ -57,9 +57,12 @@ mod peg {
 
     // TODO: Look through the generated source-spans
     // to make errors more readable
-    // TODO: Make "got" an actual iterator item in the error so we can reference
-    // position.
-    // That would also eliminate the need of "ShowFound"
+    // TODO: We could have an
+    // enum Expected {
+    //     Description(&'static str),
+    //     EndOfInput
+    // }
+    // to eliminate the hardcoded expectation string from the library
 
     yk_parser!{
         item = Token<TokTy>;
