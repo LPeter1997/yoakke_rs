@@ -5,22 +5,22 @@
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
-pub enum ParseResult<T> {
-    Ok(ParseOk<T>),
-    Err(ParseErr),
+pub enum ParseResult<T, E> {
+    Ok(ParseOk<T, E>),
+    Err(ParseErr<E>),
 }
 
 #[derive(Clone)]
-pub struct ParseOk<T> {
+pub struct ParseOk<T, E> {
     pub matched: usize,
-    pub furthest_error: Option<ParseErr>,
+    pub furthest_error: Option<ParseErr<E>>,
     pub value: T,
 }
 
 #[derive(Clone)]
-pub struct ParseErr {
+pub struct ParseErr<E> {
     pub furthest_look: usize,
-    pub found_element: String,
+    pub found_element: Found<E>,
     // rule name -> element
     pub elements: HashMap<&'static str, ParseErrElement>,
 }
@@ -31,7 +31,14 @@ pub struct ParseErrElement {
     pub expected_elements: HashSet<String>,
 }
 
-impl <T> ParseResult<T> {
+#[derive(Clone)]
+pub enum Found<E> {
+    Element(E),
+    EndOfInput,
+    Stub,
+}
+
+impl <T, E> ParseResult<T, E> {
     pub fn is_ok(&self) -> bool {
         match self {
             ParseResult::Ok(_) => true,
@@ -43,21 +50,21 @@ impl <T> ParseResult<T> {
         !self.is_ok()
     }
 
-    pub fn err(self) -> Option<ParseErr> {
+    pub fn err(self) -> Option<ParseErr<E>> {
         match self {
             ParseResult::Err(err) => Some(err),
             _ => None,
         }
     }
 
-    pub fn ok(self) -> Option<ParseOk<T>> {
+    pub fn ok(self) -> Option<ParseOk<T, E>> {
         match self {
             ParseResult::Ok(ok) => Some(ok),
             _ => None,
         }
     }
 
-    pub fn map<F, U>(self, f: F) -> ParseResult<U> where F: FnOnce(T) -> U {
+    pub fn map<F, U>(self, f: F) -> ParseResult<U, E> where F: FnOnce(T) -> U {
         if let ParseResult::Ok(ok) = self {
             ok.map(f).into()
         }
@@ -106,7 +113,7 @@ impl <T> ParseResult<T> {
         }
     }
 
-    pub fn unify_sequence<U>(a: ParseOk<T>, b: ParseResult<U>) -> ParseResult<(T, U)> {
+    pub fn unify_sequence<U>(a: ParseOk<T, E>, b: ParseResult<U, E>) -> ParseResult<(T, U), E> {
         match b {
             ParseResult::Ok(b) => {
                 ParseResult::Ok(ParseOk{
@@ -124,7 +131,7 @@ impl <T> ParseResult<T> {
         }
     }
 
-    fn unify_sequence_errors_opt(am: usize, a: Option<ParseErr>, b: Option<ParseErr>) -> Option<ParseErr> {
+    fn unify_sequence_errors_opt(am: usize, a: Option<ParseErr<E>>, b: Option<ParseErr<E>>) -> Option<ParseErr<E>> {
         // Add the match offset to the right-hand side
         let b = match b {
             Some(mut b) => {
@@ -144,7 +151,7 @@ impl <T> ParseResult<T> {
         }
     }
 
-    fn unify_alternative_errors_opt(a: Option<ParseErr>, b: Option<ParseErr>) -> Option<ParseErr> {
+    fn unify_alternative_errors_opt(a: Option<ParseErr<E>>, b: Option<ParseErr<E>>) -> Option<ParseErr<E>> {
         match (a, b) {
             (Some(a), Some(b)) => Some(Self::unify_alternative_errors(a, b)),
 
@@ -157,7 +164,7 @@ impl <T> ParseResult<T> {
 
     // TODO: Same things
 
-    fn unify_alternative_errors(a: ParseErr, b: ParseErr) -> ParseErr {
+    fn unify_alternative_errors(a: ParseErr<E>, b: ParseErr<E>) -> ParseErr<E> {
         if a.furthest_look > b.furthest_look {
             a
         }
@@ -170,7 +177,7 @@ impl <T> ParseResult<T> {
         }
     }
 
-    fn unify_sequence_errors(a: ParseErr, b: ParseErr) -> ParseErr {
+    fn unify_sequence_errors(a: ParseErr<E>, b: ParseErr<E>) -> ParseErr<E> {
         if a.furthest_look > b.furthest_look {
             a
         }
@@ -183,12 +190,12 @@ impl <T> ParseResult<T> {
         }
     }
 
-    fn unify_errors(a: ParseErr, b: ParseErr) -> ParseErr {
+    fn unify_errors(a: ParseErr<E>, b: ParseErr<E>) -> ParseErr<E> {
         // Special case if one is an empty element
-        if a.found_element == "" {
+        if let Found::Stub = a.found_element {
             b
         }
-        else if b.found_element == "" {
+        else if let Found::Stub = b.found_element {
             a
         }
         else {
@@ -213,19 +220,19 @@ impl <T> ParseResult<T> {
     }
 }
 
-impl <T> From<ParseOk<T>> for ParseResult<T> {
-    fn from(ok: ParseOk<T>) -> Self {
+impl <T, E> From<ParseOk<T, E>> for ParseResult<T, E> {
+    fn from(ok: ParseOk<T, E>) -> Self {
         Self::Ok(ok)
     }
 }
 
-impl <T> From<ParseErr> for ParseResult<T> {
-    fn from(err: ParseErr) -> Self {
+impl <T, E> From<ParseErr<E>> for ParseResult<T, E> {
+    fn from(err: ParseErr<E>) -> Self {
         Self::Err(err)
     }
 }
 
-impl <T> ParseOk<T> {
+impl <T, E> ParseOk<T, E> {
     pub fn furthest_look(&self) -> usize {
         if let Some(err) = &self.furthest_error {
             std::cmp::max(self.matched, err.furthest_look())
@@ -235,7 +242,7 @@ impl <T> ParseOk<T> {
         }
     }
 
-    pub fn map<F, U>(self, f: F) -> ParseOk<U> where F: FnOnce(T) -> U {
+    pub fn map<F, U>(self, f: F) -> ParseOk<U, E> where F: FnOnce(T) -> U {
         ParseOk{
             matched: self.matched,
             furthest_error: self.furthest_error,
@@ -244,12 +251,12 @@ impl <T> ParseOk<T> {
     }
 }
 
-impl ParseErr {
+impl <E> ParseErr<E> {
     pub fn new() -> Self {
-        Self{ furthest_look: 0, found_element: String::new(), elements: HashMap::new() }
+        Self{ furthest_look: 0, found_element: Found::Stub, elements: HashMap::new() }
     }
 
-    pub fn single(furthest_look: usize, found_element: String, rule: &'static str, expected_element: String) -> Self {
+    pub fn single(furthest_look: usize, found_element: Found<E>, rule: &'static str, expected_element: String) -> Self {
         let mut elements = HashMap::new();
         elements.insert(rule.clone(), ParseErrElement::single(rule, expected_element));
         Self{ furthest_look, found_element, elements }

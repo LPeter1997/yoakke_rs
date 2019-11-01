@@ -43,7 +43,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 
     quote!{
         //mod #memo_ctx_mod {
-            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Match, ShowFound};
+            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Found, Match};
             use ::std::string::String;
             use ::std::option::Option;
             use ::std::collections::HashMap;
@@ -106,8 +106,9 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
         I : Iterator<Item = #item_type> + Clone,
 
         // TODO: Do we need this everywhere?
-        // Can we at least get rid of the iterator?
-        #ret_ty : 'static
+        // Maybe enough for indirect recursion
+        #ret_ty : 'static,
+        #item_type : 'static
     };
 
     // Identifiers for this parser
@@ -126,15 +127,15 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
     let rec = rs.left_recursion(name);
     let memo_ty = match rec {
         bnf::LeftRecursion::None => {quote!{
-            ParseResult<#ret_ty>
+            ParseResult<#ret_ty, #item_type>
         }},
 
         bnf::LeftRecursion::Direct => {quote!{
-            drec::DirectRec<#ret_ty>
+            drec::DirectRec<#ret_ty, #item_type>
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
-            irec::Entry<#ret_ty>
+            irec::Entry<#ret_ty, #item_type>
         }}
     };
 
@@ -231,7 +232,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
 
         bnf::LeftRecursion::Direct => {quote!{
             fn #grow_fname<I>(&mut self, src: I, idx: usize,
-                old: ParseResult<#ret_ty>) -> ParseResult<#ret_ty>
+                old: ParseResult<#ret_ty, #item_type>) -> ParseResult<#ret_ty, #item_type>
                 where #where_clause {
 
                 let curr_rule = #name;
@@ -259,7 +260,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
 
         bnf::LeftRecursion::Indirect => {quote!{
             fn #recall_fname<I>(&mut self, src: I, idx: usize)
-                -> Option<irec::Entry<#ret_ty>>
+                -> Option<irec::Entry<#ret_ty, #item_type>>
                 where #where_clause {
 
                 let curr_rule = #name;
@@ -288,7 +289,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
 
             fn #lr_answer_fname<I>(&mut self, src: I, idx: usize,
                 growable: &Rc<RefCell<irec::LeftRecursive>>)
-                -> ParseResult<#ret_ty>
+                -> ParseResult<#ret_ty, #item_type>
                 where #where_clause {
 
                 assert!((*growable).borrow().head.is_some());
@@ -309,8 +310,8 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
             }
 
             fn #grow_fname<I>(&mut self, src: I, idx: usize,
-                old: ParseResult<#ret_ty>, h: &Rc<RefCell<irec::RecursionHead>>)
-                -> ParseResult<#ret_ty>
+                old: ParseResult<#ret_ty, #item_type>, h: &Rc<RefCell<irec::RecursionHead>>)
+                -> ParseResult<#ret_ty, #item_type>
                 where #where_clause {
 
                 let curr_rule = #name;
@@ -342,19 +343,19 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
         #grow_code
 
         // The actual published function
-        pub fn #pub_parse_fname<I>(&mut self, src: I) -> ParseResult<#ret_ty> where #where_clause {
+        pub fn #pub_parse_fname<I>(&mut self, src: I) -> ParseResult<#ret_ty, #item_type> where #where_clause {
             self.#parse_fname(src, 0)
         }
 
-        fn #parse_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty> where #where_clause {
+        fn #parse_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty, #item_type> where #where_clause {
             let curr_rule = #name;
             #memo_code
         }
 
-        fn #apply_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty> where #where_clause {
+        fn #apply_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty, #item_type> where #where_clause {
             let curr_rule = #name;
             // Enforce a cast if needed
-            let res: ParseResult<_> = { #code };
+            let res: ParseResult<_, #item_type> = { #code };
             res.map(|ok| -> #ret_ty { ok.into() })
             /*
             Without implicit cast:
@@ -423,8 +424,9 @@ fn generate_code_transformation(rs: &bnf::RuleSet, ret_ty: &Type, counter: usize
     let closure = quote!{ |#params| -> #ret_ty #action };
     */
 
+    let item_type = &rs.item_type;
     let code = quote!{{
-        let res: ParseResult<_> = { #code };
+        let res: ParseResult<_, #item_type> = { #code };
         res.map(|(#param_names): (#param_tys)| (#closure)(#param_names)).into()
     }};
 
@@ -549,12 +551,11 @@ fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (T
                 ParseOk{ matched: 1, furthest_error: None, value: (v) }.into()
             }
             else {
-                let got = Self::show_found(&v);
-                ParseErr::single(1, got, curr_rule, Self::show_expected(&#tok)).into()
+                ParseErr::single(1, Found::Element(v), curr_rule, Self::show_expected(&#tok)).into()
             }
         }
         else {
-            ParseErr::single(1, "end of input".into(), curr_rule, Self::show_expected(&#tok)).into()
+            ParseErr::single(1, Found::EndOfInput, curr_rule, Self::show_expected(&#tok)).into()
         }
     }};
     (code, vec![rs.item_type.clone()])
@@ -568,8 +569,7 @@ fn generate_code_end(rs: &bnf::RuleSet, counter: usize) -> (TokenStream, Vec<Typ
     let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
-            let got = Self::show_found(&v);
-            ParseErr::single(1, got, curr_rule, "end of input".into()).into()
+            ParseErr::single(1, Found::Element(v), curr_rule, "end of input".into()).into()
         }
         else {
             ParseOk{ matched: 0, furthest_error: None, value: () }.into()

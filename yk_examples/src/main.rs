@@ -5,7 +5,7 @@ extern crate yk_parser;
 use std::io::{self, BufRead};
 use std::collections::HashMap;
 use yk_lexer::{Token, TokenType, Lexer};
-use yk_parser::{yk_parser, ParseResult, ParseErr, Match};
+use yk_parser::{yk_parser, ParseResult, ParseErr, Found, Match};
 
 #[derive(Lexer, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TokTy {
@@ -185,12 +185,6 @@ mod peg {
 
         fn show_expected(t: &&str) -> String {
             (*t).into()
-        }
-    }
-
-    impl ShowFound for Parser {
-        fn show_found(t: &Token<TokTy>) -> String {
-            t.value.clone()
         }
     }
 }
@@ -377,7 +371,7 @@ impl Interpreter {
     }
 }
 
-fn dump_error(err: &ParseErr) {
+fn dump_error(err: &ParseErr<Token<TokTy>>) {
     println!("Err:");
     for (rule, element) in &err.elements {
         print!("  While parsing {} expected: ", rule);
@@ -392,12 +386,17 @@ fn dump_error(err: &ParseErr) {
         }
         println!();
     }
-    println!("But got '{}'", err.found_element);
+    match &err.found_element {
+        Found::Element(e) => println!("But got '{}'", e.value),
+        Found::EndOfInput => println!("But got end of input"),
+        Found::Stub => panic!(),
+    }
+
 }
 
 fn main() {
     let src = "
-while 1 {
+while {
     n = read
 
     is_prime = 1
