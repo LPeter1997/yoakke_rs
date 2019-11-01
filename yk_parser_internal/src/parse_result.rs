@@ -38,6 +38,9 @@ pub enum Found<E> {
     Stub,
 }
 
+#[derive(Clone, Copy)]
+pub struct EndOfInput;
+
 impl <T, E> ParseResult<T, E> {
     pub fn is_ok(&self) -> bool {
         match self {

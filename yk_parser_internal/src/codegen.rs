@@ -43,7 +43,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 
     quote!{
         //mod #memo_ctx_mod {
-            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Found, Match};
+            use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Found, Match, EndOfInput};
             use ::std::string::String;
             use ::std::option::Option;
             use ::std::collections::HashMap;
@@ -569,7 +569,13 @@ fn generate_code_end(rs: &bnf::RuleSet, counter: usize) -> (TokenStream, Vec<Typ
     let code = quote!{{
         let mut src2 = src.clone();
         if let Some(v) = src2.next() {
-            ParseErr::single(1, Found::Element(v), curr_rule, "end of input".into()).into()
+            let eoi = EndOfInput{};
+            if Self::matches(&v, &eoi) {
+                ParseOk{ matched: 1, furthest_error: None, value: () }.into()
+            }
+            else {
+                ParseErr::single(1, Found::Element(v), curr_rule, Self::show_expected(&eoi)).into()
+            }
         }
         else {
             ParseOk{ matched: 0, furthest_error: None, value: () }.into()

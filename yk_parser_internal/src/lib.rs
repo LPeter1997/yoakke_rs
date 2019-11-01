@@ -13,5 +13,5 @@ mod r#match;
 mod replace_dollar;
 
 pub use codegen::generate_code;
-pub use parse_result::{ParseResult, ParseOk, ParseErr, ParseErrElement, Found};
+pub use parse_result::{ParseResult, ParseOk, ParseErr, ParseErrElement, Found, EndOfInput};
 pub use r#match::{Parser, Match};

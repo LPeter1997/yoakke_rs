@@ -171,6 +171,16 @@ mod peg {
             ;
     }
 
+    impl Match<EndOfInput> for Parser {
+        fn matches(a: &Token<TokTy>, b: &EndOfInput) -> bool {
+            a.kind == TokTy::End
+        }
+
+        fn show_expected(t: &EndOfInput) -> String {
+            "end of input".into()
+        }
+    }
+
     impl Match<TokTy> for Parser {
         fn matches(a: &Token<TokTy>, b: &TokTy) -> bool {
             a.kind == *b
@@ -399,7 +409,7 @@ fn dump_error(err: &ParseErr<Token<TokTy>>) {
 
 fn main() {
     let src = "
-while {
+while 1 {
     n = read
 
     is_prime = 1
@@ -424,7 +434,7 @@ while {
     tokens.splice(m.erased, m.inserted);
 
     let mut parser = peg::Parser::new();
-    let r = parser.program(tokens.iter().cloned().take_while(|t| t.kind != TokTy::End));
+    let r = parser.program(tokens.iter().cloned());
     if r.is_ok() {
         let ok = r.ok().unwrap();
 
