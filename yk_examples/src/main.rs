@@ -57,12 +57,6 @@ mod peg {
 
     // TODO: Look through the generated source-spans
     // to make errors more readable
-    // TODO: We could have an
-    // enum Expected {
-    //     Description(&'static str),
-    //     EndOfInput
-    // }
-    // to eliminate the hardcoded expectation string from the library
 
     yk_parser!{
         item = Token<TokTy>;
