@@ -11,4 +11,5 @@ members = [
     "yk_parser",
     "yk_parser_derive",
     "yk_examples",
+    "yk_incremental_test",
 ]
