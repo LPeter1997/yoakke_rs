@@ -62,6 +62,9 @@ mod peg {
     // Sometimes we clone and return a clone, sometimes we return refs
     // Be consistent!
 
+    // TODO: Make lexer offset the tokens so it doesn't have to be done
+    // explicitly
+
     yk_parser!{
         item = Token<TokTy>;
 

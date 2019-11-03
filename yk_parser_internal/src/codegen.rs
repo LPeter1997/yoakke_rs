@@ -26,6 +26,8 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     let mut memo_members = Vec::new();
     let mut memo_ctor = Vec::new();
 
+    let mut memo_invalidate = Vec::new();
+
     // Identifier for type
     //let memo_ctx = quote::format_ident!("{}", rules.grammar_name);
     // memo_ctx_mod = quote::format_ident!("{}_impl_mod", rules.grammar_name);
@@ -37,6 +39,38 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 
         memo_members.push(quote!{ #memo_id: HashMap<usize, #memo_ty> });
         memo_ctor.push(quote!{ #memo_id: HashMap::new() });
+
+        memo_invalidate.push(quote!{{
+            // TODO: There's probably a better data-structure to do this
+            // This is essentially a linear search on a hash-map...
+
+            let mut entries_to_erase = Vec::new();
+            let mut entries_to_move = Vec::new();
+
+            // Collect what to remove and what to offset
+            for k in self.#memo_id.keys() {
+                if *k >= rem.start {
+                    if *k < rem.end {
+                        entries_to_erase.push(*k);
+                    }
+                    else {
+                        entries_to_move.push(*k);
+                    }
+                }
+            }
+
+            // Remove what needs to be removed
+            for k in entries_to_erase {
+                self.#memo_id.remove(&k);
+            }
+
+            // Offset what needs to be offset
+            for k in entries_to_move {
+                let new_k = usize::try_from(isize::try_from(k).unwrap() + offset).unwrap();
+                let entry = self.#memo_id.remove(&k).unwrap();
+                self.#memo_id.insert(new_k, entry);
+            }
+        }});
     }
 
     let item_type = &rules.item_type;
@@ -54,6 +88,8 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             use ::std::boxed::Box;
             use ::std::rc::Rc;
             use ::std::cell::{RefCell, RefMut};
+            use ::std::ops::Range;
+            use ::std::convert::TryFrom;
 
             pub struct Parser {
                 call_stack: irec::CallStack,
@@ -72,6 +108,14 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                         call_heads: irec::CallHeadTable::new(),
                         #(#memo_ctor),*
                     }
+                }
+
+                pub fn invalidate(&mut self, rem: Range<usize>, ins: usize) {
+                    let offset = isize::try_from(ins).unwrap() - isize::try_from(rem.end - rem.start).unwrap();
+
+                    // TODO: Invalidate call_stack and call_heads too
+
+                    #(#memo_invalidate)*
                 }
 
                 #(#parser_fns)*
