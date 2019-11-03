@@ -41,6 +41,11 @@ impl LeftRecursive {
         assert!(self.seed.is::<ParseResult<T, E>>());
         (*self.seed.downcast_ref::<ParseResult<T, E>>().unwrap()).clone()
     }
+
+    pub fn furthest_look<T, E>(&self) -> usize where ParseResult<T, E> : 'static {
+        assert!(self.seed.is::<ParseResult<T, E>>());
+        (*self.seed.downcast_ref::<ParseResult<T, E>>().unwrap()).furthest_look()
+    }
 }
 
 // Call head tracking
@@ -114,6 +119,13 @@ impl <T, E> Entry<T, E> {
         match self {
             Entry::LeftRecursive(lr) => (**lr).borrow().parse_result(),
             Entry::ParseResult(r) => r.clone(),
+        }
+    }
+
+    pub fn furthest_look(&self) -> usize where ParseResult<T, E> : 'static {
+        match self {
+            Entry::LeftRecursive(lr) => (**lr).borrow().furthest_look::<T, E>(),
+            Entry::ParseResult(r) => r.furthest_look(),
         }
     }
 }

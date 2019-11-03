@@ -58,6 +58,10 @@ mod peg {
     // TODO: Look through the generated source-spans
     // to make errors more readable
 
+    // TODO: Clean up the result-APIs
+    // Sometimes we clone and return a clone, sometimes we return refs
+    // Be consistent!
+
     yk_parser!{
         item = Token<TokTy>;
 
@@ -398,7 +402,6 @@ fn dump_error(err: &ParseErr<Token<TokTy>>) {
         Found::EndOfInput => println!("But got end of input"),
         Found::Stub => panic!(),
     }
-
 }
 
 fn main() {
