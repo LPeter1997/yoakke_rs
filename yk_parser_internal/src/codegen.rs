@@ -49,6 +49,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 
             // Collect what to remove and what to offset
             for k in self.#memo_id.keys() {
+                // TODO: We aren't using furthest_look()!!!
                 if *k >= rem.start {
                     if *k < rem.end {
                         entries_to_erase.push(*k);
