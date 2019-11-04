@@ -56,7 +56,7 @@ mod expr {
 
         atom ::=
             | Tok::IntLit { $0.value.parse::<i32>().unwrap() }
-            | "(" expr ")" { $1 }
+            | "(" add_expr ")" { $1 }
             ;
     }
 
