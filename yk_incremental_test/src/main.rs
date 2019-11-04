@@ -2,6 +2,7 @@ extern crate yk_lexer;
 extern crate yk_parser;
 
 use std::io::{self, BufRead};
+use std::time::{Duration, Instant};
 use yk_lexer::{Lexer, TokenType, Token};
 use yk_parser::ParseResult;
 
@@ -122,22 +123,29 @@ fn main() {
 
         // Nonincremental
         let nir = {
-            nonincr_source.drain(removed_range.clone());
-            nonincr_source.insert_str(offset, inserted_content);
-
             let mut lexer = Tok::lexer();
             let mut tokens = Vec::new();
+            let mut parser = expr::Parser::new();
+
+            let start = Instant::now();
+
+            nonincr_source.drain(removed_range.clone());
+            nonincr_source.insert_str(offset, inserted_content);
 
             let m = lexer.modify(&tokens, 0..0, &nonincr_source);
             tokens.splice(m.erased, m.inserted);
 
-            let mut parser = expr::Parser::new();
             let r = parser.expr(tokens.iter().cloned());
+
+            let elapsed = start.elapsed();
+            println!("Full-parse took: {}", elapsed.as_millis());
 
             res_to_str(r)
         };
 
         let ir = {
+            let start = Instant::now();
+
             let m = incr_lexer.modify(&incr_tokens, removed_range, &inserted_content);
 
             // TODO: Move this to modify()?
@@ -152,6 +160,9 @@ fn main() {
             incr_parser.invalidate(m.erased, ilen);
 
             let r = incr_parser.expr(incr_tokens.iter().cloned());
+
+            let elapsed = start.elapsed();
+            println!("Incremental-parse took: {}", elapsed.as_millis());
 
             res_to_str(r)
         };
