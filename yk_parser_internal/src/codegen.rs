@@ -48,15 +48,19 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
             let mut entries_to_move = Vec::new();
 
             // Collect what to remove and what to offset
-            for k in self.#memo_id.keys() {
-                // TODO: We aren't using furthest_look()!!!
-                if *k >= rem.start {
-                    if *k < rem.end {
+            for (k, v) in &self.#memo_id {
+                let start = *k;
+                let end = start + v.furthest_look();
+                if start >= rem.start {
+                    if start < rem.end {
                         entries_to_erase.push(*k);
                     }
                     else {
                         entries_to_move.push(*k);
                     }
+                }
+                else if end > rem.start {
+                    entries_to_erase.push(start);
                 }
             }
 
