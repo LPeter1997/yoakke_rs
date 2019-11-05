@@ -52,14 +52,14 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                 let start = *k;
                 let end = start + v.furthest_look();
                 if start >= rem.start {
-                    if start < rem.end {
+                    if start <= rem.end {
                         entries_to_erase.push(*k);
                     }
                     else {
                         entries_to_move.push(*k);
                     }
                 }
-                else if end > rem.start {
+                else if end >= rem.start {
                     entries_to_erase.push(start);
                 }
             }
@@ -118,7 +118,9 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
                 pub fn invalidate(&mut self, rem: Range<usize>, ins: usize) {
                     let offset = isize::try_from(ins).unwrap() - isize::try_from(rem.end - rem.start).unwrap();
 
-                    // TODO: Invalidate call_stack and call_heads too
+                    // TODO: Do we need this?
+                    self.call_stack.clear();
+                    self.call_heads.clear();
 
                     #(#memo_invalidate)*
                 }

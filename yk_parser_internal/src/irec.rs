@@ -71,6 +71,10 @@ impl CallHeadTable {
     pub fn remove(&mut self, idx: &usize) {
         self.heads.remove(&idx);
     }
+
+    pub fn clear(&mut self) {
+        self.heads.clear();
+    }
 }
 
 // Call stack
@@ -103,6 +107,10 @@ impl CallStack {
             elem.head = (*rec).borrow().head.clone();
             (*rec).borrow().head.as_ref().unwrap().borrow_mut().involved.insert(elem.parser);
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.stack.clear();
     }
 }
 
