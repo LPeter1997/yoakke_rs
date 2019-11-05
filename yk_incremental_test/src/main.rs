@@ -315,7 +315,7 @@ fn dump_error(err: &ParseErr<Token<Tok>>) {
         println!();
     }
     match &err.found_element {
-        Found::Element(e) => println!("But got '{}'", e.value),
+        Found::Element(e) => println!("But got '{}' (line {}, column {})", e.value, e.position.line, e.position.column),
         Found::EndOfInput => println!("But got end of input"),
         Found::Stub => panic!(),
     }
