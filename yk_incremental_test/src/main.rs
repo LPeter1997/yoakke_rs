@@ -147,17 +147,9 @@ fn main() {
             let start = Instant::now();
 
             let m = incr_lexer.modify(&incr_tokens, removed_range, &inserted_content);
+            let m = m.apply(&mut incr_tokens);
 
-            // TODO: Move this to modify()?
-            // We need to shift the existing tokens
-            for t in &mut incr_tokens[m.erased.end..] {
-                t.shift(m.offset);
-            }
-            let ilen = m.inserted.len();
-            incr_tokens.splice(m.erased.clone(), m.inserted);
-            // TODO end ///////////////////
-
-            incr_parser.invalidate(m.erased, ilen);
+            incr_parser.invalidate(m.erased, m.inserted);
 
             let r = incr_parser.expr(incr_tokens.iter().cloned());
 

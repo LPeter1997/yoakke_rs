@@ -97,15 +97,10 @@ fn fuzz_epoch(edits: usize, strat: &dyn FuzzStrategy) {
         let prev_tokens: Vec<_> = lexer.iter().collect();
         let (erased, inserted) = strat.make_edit(lexer.source());
         let m = lexer.modify(&tokens, erased.clone(), &inserted);
-        // We need to also shift the existing tokens
-        for t in &mut tokens[m.erased.end..] {
-            t.shift(m.offset);
-        }
+        let m = m.apply(&mut tokens);
 
         let erased_cnt = m.erased.len();
-        let inserted_cnt = m.inserted.len();
-
-        tokens.splice(m.erased.clone(), m.inserted);
+        let inserted_cnt = m.inserted;
 
         let orig_tokens: Vec<_> = lexer.iter().collect();
         let diff = tokens.len() - inserted_cnt;

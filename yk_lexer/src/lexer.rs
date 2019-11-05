@@ -106,6 +106,27 @@ pub struct Modification<T> {
     pub offset: isize,
 }
 
+impl <T> Modification<T> {
+    pub fn apply(self, tokens: &mut Vec<Token<T>>) -> AppliedModification {
+        for t in &mut tokens[self.erased.end..] {
+            t.shift(self.offset);
+        }
+        let ilen = self.inserted.len();
+        tokens.splice(self.erased.clone(), self.inserted);
+
+        AppliedModification{ erased: self.erased, inserted: ilen }
+    }
+}
+
+/**
+ * The result of applying the modification on a token collection.
+ */
+
+pub struct AppliedModification {
+    pub erased: Range<usize>,
+    pub inserted: usize,
+}
+
 /**
  * The builtin lexer.
  */
