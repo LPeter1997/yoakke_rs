@@ -72,16 +72,19 @@ mod peg {
         // Statements
         type = ();
 
-        program ::= ident args $end { };
+        program ::= call $end { };
+
+        call ::= ident "(" ")" {  };
 
         ident ::=
             | TokTy::Ident {  }
             | prefix "." TokTy::Ident { }
             ;
 
-        prefix ::= ident { };
-
-        args ::= "(" ")" {};
+        prefix ::=
+            | ident { }
+            | call { }
+            ;
     }
 
     impl Match<EndOfInput> for Parser {
