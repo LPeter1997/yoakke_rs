@@ -32,8 +32,8 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     //let memo_ctx = quote::format_ident!("{}", rules.grammar_name);
     // memo_ctx_mod = quote::format_ident!("{}_impl_mod", rules.grammar_name);
 
-    for (name, (node, node_ty)) in &rules.rules {
-        let GeneratedRule{ parser_fn, memo_id, memo_ty } = generate_code_rule(rules, node_ty, name, node);
+    for (name, (node, node_ty, trace_lvl)) in &rules.rules {
+        let GeneratedRule{ parser_fn, memo_id, memo_ty } = generate_code_rule(rules, node_ty, *trace_lvl, name, node);
 
         parser_fns.push(parser_fn);
 
@@ -138,7 +138,7 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
     }
 }
 
-fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
+fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLevel,
     name: &str, node: &bnf::Node) -> GeneratedRule {
 
     // Generate code for the subrule
@@ -388,6 +388,12 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
         }},
     };
 
+    let trace_code = match trace_lvl {
+        bnf::TraceLevel::NoTrace => quote!{},
+
+        bnf::TraceLevel::Verbose => panic!("Tracing is not implemented yet!"),
+    };
+
     let parser_fn = quote!{
         #grow_code
 
@@ -397,12 +403,15 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
         }
 
         fn #parse_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty, #item_type> where #where_clause {
+            #trace_code
             let curr_rule = #name;
             #memo_code
         }
 
         fn #apply_fname<I>(&mut self, src: I, idx: usize) -> ParseResult<#ret_ty, #item_type> where #where_clause {
+            #trace_code
             let curr_rule = #name;
+
             // Enforce a cast if needed
             let res: ParseResult<_, #item_type> = { #code };
             res.map(|ok| -> #ret_ty { ok.into() })
@@ -554,7 +563,7 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenS
     if lit.leading_colon.is_none() && lit.segments.len() == 1 {
         let id = lit.segments[0].ident.to_string();
 
-        if let Some((_, ty)) = rs.rules.get(&id) {
+        if let Some((_, ty, _)) = rs.rules.get(&id) {
             // Rule identifier
             let fname = quote::format_ident!("parse_{}", id);
             let code = quote!{{

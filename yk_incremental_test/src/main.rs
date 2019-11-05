@@ -171,18 +171,39 @@ mod lua {
 
         exp          ::= exp0 { };
 
-        exp0         ::= exp0 "or" exp1 { };
-        exp1         ::= exp1 "and" exp2 { };
-        exp2         ::= exp2 ("<" | "<=" | ">" | ">=" | "==" | "~=") exp3 { };
-        exp3         ::= exp4 ".." exp3 { };
-        exp4         ::= exp4 ("+" | "-") exp5 { };
-        exp5         ::= exp5 ("*" | "/" | "%") exp6 { };
+        exp0         ::=
+            | exp0 "or" exp1 { }
+            | exp1 { }
+            ;
+        exp1         ::=
+            | exp1 "and" exp2 { }
+            | exp2 { }
+            ;
+        exp2         ::=
+            | exp2 ("<" | "<=" | ">" | ">=" | "==" | "~=") exp3 { }
+            | exp3 { }
+            ;
+        exp3         ::=
+            | exp4 ".." exp3  { }
+            | exp4 { }
+            ;
+        exp4         ::=
+            | exp4 ("+" | "-") exp5 { }
+            | exp5 { }
+            ;
+        exp5         ::=
+            | exp5 ("*" | "/" | "%") exp6 { }
+            | exp6 { }
+            ;
         exp6         ::=
             | "not" exp6 { }
             | "#" exp6 { }
             | exp7 { }
             ;
-        exp7         ::= exp8 "^" exp7 { };
+        exp7         ::=
+            | exp8 "^" exp7 { }
+            | exp8 { }
+            ;
         exp8         ::=
             | ("nil" | "true" | "false" | Tok::IntLit | "...") { }
             | function { }
@@ -362,8 +383,6 @@ fn main() {
         bytes.next();
 
         let removed_range = offset..(offset + removed);
-
-        println!("=======================");
 
         // Nonincremental
         let nir = {

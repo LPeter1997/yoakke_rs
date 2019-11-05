@@ -15,7 +15,7 @@ use crate::syn_extensions::*;
 pub struct RuleSet {
     pub item_type: Type,
     pub top_rule: (String, Node),
-    pub rules: HashMap<String, (Node, Type)>,
+    pub rules: HashMap<String, (Node, Type, TraceLevel)>,
     pub literal_matcher: (),
 }
 
@@ -37,6 +37,12 @@ pub enum Node {
     },
 
     Literal(LiteralNode),
+}
+
+#[derive(Clone, Copy)]
+pub enum TraceLevel {
+    NoTrace,
+    Verbose,
 }
 
 #[derive(Clone)]
@@ -97,7 +103,7 @@ impl RuleSet {
                             }
                             else {
                                 // Check if it's a rule
-                                if let Some((sr, _)) = rules.rules.get(&ident) {
+                                if let Some((sr, _, _)) = rules.rules.get(&ident) {
                                     touched.insert(ident);
                                     Self::left_recursion_impl(sr, rule, rules, false, touched)
                                 }
@@ -118,7 +124,7 @@ impl RuleSet {
 
     pub fn left_recursion(&self, rule: &str) -> LeftRecursion {
         match self.rules.get(rule) {
-            Some((n, _)) => Self::left_recursion_impl(n, rule, self, true, &mut HashSet::new()),
+            Some((n, _, _)) => Self::left_recursion_impl(n, rule, self, true, &mut HashSet::new()),
             None => LeftRecursion::None,
         }
     }
@@ -136,10 +142,13 @@ impl Parse for RuleSet {
         let mut rules = HashMap::new();
         let mut top_rule = None;
         let mut curr_default_ty = None;
+        let mut curr_trace_level = TraceLevel::NoTrace;
 
         for decl in decls {
             match decl {
                 Decl::RuleType(RuleType{ ty, .. }) => curr_default_ty = Some(ty),
+
+                Decl::TraceLevel(lvl) => curr_trace_level = lvl,
 
                 Decl::Rule(Rule{ ident, ty, node, .. }) => {
                     let ident = ident.to_string();
@@ -156,7 +165,8 @@ impl Parse for RuleSet {
                     if top_rule.is_none() {
                         top_rule = Some((ident.clone(), node.clone()));
                     }
-                    rules.insert(ident, (node, rty));
+
+                    rules.insert(ident, (node, rty, curr_trace_level));
                 }
             }
         }
@@ -212,6 +222,27 @@ impl Parse for RuleType {
 }
 
 /**
+ * trace = TraceLevel
+ */
+struct SetTraceLevel {
+    at_tok: Token![@],
+    trace_tok: Ident,
+    eq: Token![=],
+    level: Ident,
+}
+
+impl Parse for SetTraceLevel {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self{
+            at_tok: input.parse()?,
+            trace_tok: parse_ident(input, "trace")?,
+            eq: input.parse()?,
+            level: input.parse()?,
+        })
+    }
+}
+
+/**
  * The allowed syntax is:
  *
  * expr ::= foo bar baz { construct(x0, x1, x2) }
@@ -246,12 +277,21 @@ impl Parse for Rule {
 enum Decl {
     RuleType(RuleType),
     Rule(Rule),
+    TraceLevel(TraceLevel),
 }
 
 impl Parse for Decl {
     fn parse(input: ParseStream) -> Result<Self> {
         if let Ok(ty) = RuleType::parse(input) {
             Ok(Decl::RuleType(ty))
+        }
+        else if let Ok(lvl) = SetTraceLevel::parse(input) {
+            let lvl = match lvl.level.to_string().as_ref() {
+                "NoTrace" => TraceLevel::NoTrace,
+                "Verbose" => TraceLevel::Verbose,
+                lvl => panic!("Unknown trace-level {}!", lvl),
+            };
+            Ok(Decl::TraceLevel(lvl))
         }
         else {
             Ok(Decl::Rule(Rule::parse(input)?))
