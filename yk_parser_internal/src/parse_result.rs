@@ -83,6 +83,13 @@ impl <T, E> ParseResult<T, E> {
         }
     }
 
+    pub fn matched(&self) -> usize {
+        match &self {
+            ParseResult::Ok(ok) => ok.matched,
+            ParseResult::Err(_) => 0,
+        }
+    }
+
     pub fn unify_alternatives(a: Self, b: Self) -> Self {
         match (a, b) {
             (ParseResult::Ok(mut a), ParseResult::Ok(mut b)) => {

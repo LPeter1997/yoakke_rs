@@ -72,7 +72,7 @@ mod peg {
         // Statements
         type = ();
 
-        program ::= ident $end { };
+        program ::= ident args $end { };
 
         ident ::=
             | TokTy::Ident {  }
@@ -80,6 +80,8 @@ mod peg {
             ;
 
         prefix ::= ident { };
+
+        args ::= "(" ")" {};
     }
 
     impl Match<EndOfInput> for Parser {
@@ -318,7 +320,7 @@ fn dump_error(err: &ParseErr<Token<TokTy>>) {
 }
 
 fn main() {
-    let src = "x.y.z";
+    let src = "x.x.x()";
 
     let mut lexer = TokTy::lexer();
     let mut tokens = Vec::new();

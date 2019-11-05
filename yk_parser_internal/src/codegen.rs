@@ -294,10 +294,12 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
 
                 let tmp_res = self.#apply_fname(src.clone(), idx);
                 // TODO: Oof, unnecessary cloning
-                if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
+                if tmp_res.is_ok() && old.matched() < tmp_res.matched() {
                     // Successfully grew the seed
+                    // Unify for furthest error
+                    let updated = ParseResult::unify_alternatives(tmp_res, old);
                     let new_old = insert_and_get(
-                        &mut #memo_entry, idx, drec::DirectRec::Recurse(tmp_res)).parse_result().clone();
+                        &mut #memo_entry, idx, drec::DirectRec::Recurse(updated)).parse_result().clone();
                     return self.#grow_fname(src.clone(), idx, new_old);
                 }
 
@@ -373,13 +375,14 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
 
                 let tmp_res = self.#apply_fname(src.clone(), idx);
                 // TODO: Oof, unnecessary cloning
-                if tmp_res.is_ok() && old.furthest_look() < tmp_res.furthest_look() {
+                if tmp_res.is_ok() && old.matched() < tmp_res.matched() {
                     // Successfully grew the seed
+                    // Unify with old for furthest error
+                    let updated = ParseResult::unify_alternatives(tmp_res, old);
                     let new_old = insert_and_get(
-                        &mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result();
+                        &mut #memo_entry, idx, irec::Entry::ParseResult(updated)).parse_result();
                     return self.#grow_fname(src.clone(), idx, new_old, h);
                 }
-
                 // We need to overwrite max-furthest in the memo-table!
                 // That's why we don't simply return old_res
                 self.call_heads.remove(&idx);
