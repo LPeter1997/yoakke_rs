@@ -38,6 +38,7 @@ pub enum TokTy {
     #[token(")")] RightParen,
 
     #[token("=")] Asgn,
+    #[token(".")] Dot,
 
     #[token("if")] KwIf,
     #[token("else")] KwElse,
@@ -69,107 +70,16 @@ mod peg {
         item = Token<TokTy>;
 
         // Statements
-        type = Box<Stmt>;
+        type = ();
 
-        program ::= compound_stmt $end { $0 };
+        program ::= ident $end { };
 
-        stmt ::=
-            | if_stmt
-            | while_stmt
-            | asgn_stmt
-            | print_stmt
-            | fn_stmt
-            | ret_stmt
-            | "{" compound_stmt "}" { $1 }
+        ident ::=
+            | TokTy::Ident {  }
+            | prefix "." TokTy::Ident { }
             ;
 
-        if_stmt ::=
-            | "if" expr stmt "else" stmt { Stmt::If($1, $2, Some($4)) }
-            | "if" expr stmt { Stmt::If($1, $2, None) }
-            ;
-
-        while_stmt ::=
-            | "while" expr stmt { Stmt::While($1, $2) }
-            ;
-
-        asgn_stmt ::=
-            | TokTy::Ident "=" expr { Stmt::Asgn($0.value.clone(), $2) }
-            ;
-
-        compound_stmt ::=
-            | compound_stmt stmt { if let Stmt::Compound(mut ss) = *$0 { ss.push($1); Stmt::Compound(ss) } else { panic!("No"); } }
-            | $epsilon { Stmt::Compound(vec![]) }
-            ;
-
-        print_stmt ::=
-            | "print" expr { Stmt::Print($1) }
-            ;
-
-        fn_stmt ::=
-            | "fn" TokTy::Ident "(" param_list ")" "{" compound_stmt "}" { Stmt::Fn($1.value.clone(), $3, $6) }
-            | "fn" TokTy::Ident "{" compound_stmt "}" { Stmt::Fn($1.value.clone(), Vec::new(), $3) }
-            ;
-
-        param_list[Vec<String>] ::=
-            | param_list TokTy::Ident { let mut e0 = $0; e0.push($1.value.clone()); e0 }
-            | TokTy::Ident { vec![$0.value.clone()] }
-            ;
-
-        ret_stmt ::= "return" expr { Stmt::Return($1) };
-
-        // Expressions
-        type = Box<Expr>;
-
-        expr ::= or_expr;
-
-        or_expr ::=
-            | or_expr "or" and_expr { Expr::Or($0, $2) }
-            | and_expr
-            ;
-
-        and_expr ::=
-            | and_expr "and" eq_expr { Expr::And($0, $2) }
-            | eq_expr
-            ;
-
-        eq_expr ::=
-            | eq_expr "==" rel_expr { Expr::Eq($0, $2) }
-            | eq_expr "!=" rel_expr { Expr::Neq($0, $2) }
-            | rel_expr
-            ;
-
-        rel_expr ::=
-            | rel_expr ">" add_expr { Expr::Gr($0, $2) }
-            | rel_expr "<" add_expr { Expr::Le($0, $2) }
-            | rel_expr ">=" add_expr { Expr::GrEq($0, $2) }
-            | rel_expr "<=" add_expr { Expr::LeEq($0, $2) }
-            | add_expr
-            ;
-
-        add_expr ::=
-            | add_expr "+" mul_expr { Expr::Add($0, $2) }
-            | add_expr "-" mul_expr { Expr::Sub($0, $2) }
-            | mul_expr
-            ;
-
-        mul_expr ::=
-            | mul_expr "*" unary_expr { Expr::Mul($0, $2) }
-            | mul_expr "/" unary_expr { Expr::Div($0, $2) }
-            | mul_expr "%" unary_expr { Expr::Mod($0, $2) }
-            | unary_expr
-            ;
-
-        unary_expr ::=
-            | "!" unary_expr { Expr::Not($1) }
-            | "-" unary_expr { Expr::Neg($1) }
-            | atom
-            ;
-
-        atom ::=
-            | TokTy::IntLit { Expr::IntLit($0.value.parse::<i32>().unwrap()) }
-            | TokTy::Ident { Expr::Ident($0.value.clone()) }
-            | "(" expr ")" { $1 }
-            ;
+        prefix ::= ident { };
     }
 
     impl Match<EndOfInput> for Parser {
@@ -408,24 +318,7 @@ fn dump_error(err: &ParseErr<Token<TokTy>>) {
 }
 
 fn main() {
-    let src = "
-while 1 {
-    n = read
-
-    is_prime = 1
-    i = 2
-    while i < n {
-        if n % i == 0 {
-            is_prime = 0
-        }
-        i = i + 1
-    }
-    if n == 1 {
-        is_prime = 0
-    }
-    print is_prime
-}
-    ";
+    let src = "x.y.z";
 
     let mut lexer = TokTy::lexer();
     let mut tokens = Vec::new();
@@ -441,10 +334,10 @@ while 1 {
         let val = ok.value;
         let mlen = ok.matched;
         println!("Parse succeeded, matched: {}", mlen);
-        let mut interpr = Interpreter::new();
-        interpr.push_stack();
-        interpr.execute(&val);
-        interpr.pop_stack();
+        //let mut interpr = Interpreter::new();
+        //interpr.push_stack();
+        //interpr.execute(&val);
+        //interpr.pop_stack();
     }
     else {
         let err = r.err().unwrap();
