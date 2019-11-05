@@ -362,6 +362,10 @@ fn parse_content(i: &mut Bytes<impl Read>, len: usize) -> String {
     String::from_utf8(v).unwrap()
 }
 
+// TODO: Bug
+// x.y.z = 0 doesn't work
+// At least 3 elements seem to be a problem when parsing a dot-separated chain
+
 fn main() {
     let mut nonincr_source = String::new();
 
