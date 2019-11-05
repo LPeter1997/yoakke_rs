@@ -1,7 +1,7 @@
 extern crate yk_lexer;
 extern crate yk_parser;
 
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Read, Bytes};
 use std::time::{Duration, Instant};
 use yk_lexer::{Lexer, TokenType, Token};
 use yk_parser::ParseResult;
@@ -102,6 +102,37 @@ fn res_to_str(res: ParseResult<i32, Token<Tok>>) -> String {
     }
 }
 
+fn parse_number(i: &mut Bytes<impl Read>) -> usize {
+    let mut n: usize = 0;
+    let mut has_parsed = false;
+    while let Some(res) = i.next() {
+        has_parsed = true;
+        let dig = res.unwrap();
+        if dig == ';' as u8 {
+            break;
+        }
+        n = n * 10 + ((dig - ('0' as u8)) as usize);
+    }
+    if !has_parsed {
+        std::process::exit(0);
+    }
+    n
+}
+
+fn parse_content(i: &mut Bytes<impl Read>, len: usize) -> String {
+    let mut v = Vec::new();
+    for _ in 0..len {
+        if let Some(res) = i.next() {
+            let c = res.unwrap();
+            v.push(c);
+        }
+        else {
+            break;
+        }
+    }
+    String::from_utf8(v).unwrap()
+}
+
 fn main() {
     let mut nonincr_source = String::new();
 
@@ -110,14 +141,17 @@ fn main() {
     let mut incr_parser = expr::Parser::new();
 
     let stdin = io::stdin();
-    for line in stdin.lock().lines() {
-        let line = line.unwrap();
-        let mut pieces = line.split(';');
+    let stdin_lock = stdin.lock();
+    let mut bytes = stdin_lock.bytes();
+    loop {
+        let offset = parse_number(&mut bytes);
+        let removed = parse_number(&mut bytes);
+        let inserted = parse_number(&mut bytes);
+        let inserted_content = parse_content(&mut bytes, inserted);
 
-        let offset = pieces.next().unwrap().parse::<usize>().unwrap();
-        let removed = pieces.next().unwrap().parse::<usize>().unwrap();
-        let inserted = pieces.next().unwrap().parse::<usize>().unwrap();
-        let inserted_content = pieces.next().unwrap();
+        // Skip newline
+        bytes.next();
+        bytes.next();
 
         let removed_range = offset..(offset + removed);
 
@@ -130,7 +164,7 @@ fn main() {
             let start = Instant::now();
 
             nonincr_source.drain(removed_range.clone());
-            nonincr_source.insert_str(offset, inserted_content);
+            nonincr_source.insert_str(offset, &inserted_content);
 
             let m = lexer.modify(&tokens, 0..0, &nonincr_source);
             tokens.splice(m.erased, m.inserted);
