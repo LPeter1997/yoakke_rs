@@ -4,28 +4,73 @@ extern crate yk_parser;
 use std::io::{self, BufRead, Read, Bytes};
 use std::time::{Duration, Instant};
 use yk_lexer::{Lexer, TokenType, Token};
-use yk_parser::ParseResult;
+use yk_parser::{ParseResult, ParseErr, Found};
 
 #[derive(Lexer, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tok {
     #[error] Error,
-    #[end] End,
+    #[end] EndOfInput,
 
     #[regex(r"[ \r\n\t]")] #[ignore] Ws,
 
     #[regex(r"[0-9]+")] IntLit,
+    #[c_ident] Ident,
 
+    #[token("or")] Or,
+    #[token("and")] And,
+    #[token("<")] Lt,
+    #[token("<=")] Le,
+    #[token(">")] Gt,
+    #[token(">=")] Ge,
+    #[token("==")] Eq,
+    #[token("~=")] Neq,
+    #[token("..")] Cat,
     #[token("+")] Add,
     #[token("-")] Sub,
     #[token("*")] Mul,
     #[token("/")] Div,
+    #[token("%")] Mod,
+    #[token("not")] Not,
+    #[token("#")] Hash,
     #[token("^")] Exp,
+
+    #[token("=")] Asgn,
+
+    #[token(";")] Sc,
+    #[token(".")] Dot,
+    #[token(",")] Comma,
+
+    #[token("...")] Ellipsis,
+
+    #[token("function")] Function,
+    #[token("do")] Do,
+    #[token("while")] While,
+    #[token("repeat")] Repeat,
+    #[token("until")] Until,
+    #[token("if")] If,
+    #[token("else")] Else,
+    #[token("elseif")] ElseIf,
+    #[token("for")] For,
+    #[token("end")] End,
+    #[token("break")] Break,
+    #[token("return")] Return,
+    #[token("local")] Local,
+
+    #[token("nil")] Nil,
+    #[token("true")] True,
+    #[token("false")] False,
 
     #[token("(")] LeftParen,
     #[token(")")] RightParen,
+
+    #[token("[")] LeftBracket,
+    #[token("]")] RightBracket,
+
+    #[token("{")] LeftBrace,
+    #[token("}")] RightBrace,
 }
 
-mod expr {
+mod lua {
     use std::convert::TryInto;
     use crate::Tok;
     use yk_lexer::Token;
@@ -34,36 +79,177 @@ mod expr {
     yk_parser!{
         item = Token<Tok>;
 
-        type = i32;
+        type = ();
 
-        expr ::= add_expr $end { $0 };
+        // The lua grammar based on http://lua-users.org/wiki/LuaGrammar
 
-        add_expr ::=
-            | add_expr "+" mul_expr { $0 + $2 }
-            | add_expr "-" mul_expr { $0 - $2 }
-            | mul_expr
+        prg          ::= block $end { };
+
+        semi         ::=
+            | ";" { }
+            | $epsilon
             ;
 
-        mul_expr ::=
-            | mul_expr "*" exp_expr { $0 * $2 }
-            | mul_expr "/" exp_expr { $0 / $2 }
-            | exp_expr
+        block        ::=
+            | scope statlist { }
+            | scope statlist laststat semi { }
             ;
 
-        exp_expr ::=
-            | atom "^" exp_expr { i32::pow($0, i32::try_into($2).unwrap()) }
-            | atom
+        ublock       ::= block "until" exp { };
+
+        scope        ::=
+            | scope statlist binding semi { }
+            | $epsilon
             ;
 
-        atom ::=
-            | Tok::IntLit { $0.value.parse::<i32>().unwrap() }
-            | "(" add_expr ")" { $1 }
+        statlist     ::=
+            | statlist stat semi { }
+            | $epsilon
+            ;
+
+        stat         ::=
+            | "do" block "end" { }
+            | "while" exp "do" block "end" { }
+            | repetition "do" block "end" { }
+            | "repeat" ublock { }
+            | "if" conds "end" { }
+            | "function" funcname funcbody { }
+            | setlist "=" explist1 { }
+            | functioncall { }
+            ;
+
+        repetition   ::=
+            | "for" Tok::Ident "=" explist23 { }
+            | "for" namelist "in" explist1 { }
+            ;
+
+        conds        ::=
+            | condlist { }
+            | condlist "else" block { }
+            ;
+        condlist     ::=
+            | cond { }
+            | condlist "elseif" cond { }
+            ;
+        cond         ::= exp "then" block { };
+
+        laststat     ::=
+            | "break" { }
+            | "return" { }
+            | "return" explist1 { }
+            ;
+
+        binding      ::=
+            | "local" namelist { }
+            | "local" namelist "=" explist1 { }
+            | "local" "function" Tok::Ident funcbody { }
+            ;
+
+        funcname     ::=
+            | dottedname { }
+            | dottedname ":" Tok::Ident { }
+            ;
+
+        dottedname   ::=
+            | Tok::Ident { }
+            | dottedname "." Tok::Ident { }
+            ;
+
+        namelist     ::=
+            | Tok::Ident { }
+            | namelist "," Tok::Ident { }
+            ;
+
+        explist1     ::=
+            | exp { }
+            | explist1 "," exp { }
+            ;
+        explist23    ::=
+            | exp "," exp { }
+            | exp "," exp "," exp { }
+            ;
+
+        exp          ::= exp0 { };
+
+        exp0         ::= exp0 "or" exp1 { };
+        exp1         ::= exp1 "and" exp2 { };
+        exp2         ::= exp2 ("<" | "<=" | ">" | ">=" | "==" | "~=") exp3 { };
+        exp3         ::= exp4 ".." exp3 { };
+        exp4         ::= exp4 ("+" | "-") exp5 { };
+        exp5         ::= exp5 ("*" | "/" | "%") exp6 { };
+        exp6         ::=
+            | "not" exp6 { }
+            | "#" exp6 { }
+            | exp7 { }
+            ;
+        exp7         ::= exp8 "^" exp7 { };
+        exp8         ::=
+            | ("nil" | "true" | "false" | Tok::IntLit | "...") { }
+            | function { }
+            | prefixexp { }
+            | tableconstructor { }
+            ;
+
+        setlist      ::=
+            | var { }
+            | setlist "," var { }
+            ;
+
+        var          ::=
+            | Tok::Ident { }
+            | prefixexp "[" exp "]" {  }
+            | prefixexp "." Tok::Ident { }
+            ;
+
+        prefixexp    ::=
+            | var { }
+            | functioncall { }
+            | "(" exp ")" { }
+            ;
+
+        functioncall ::=
+            | prefixexp args { }
+            | prefixexp ":" Tok::Ident args { }
+            ;
+
+        args         ::=
+            | "(" ")" { }
+            | "(" explist1 ")" { }
+            | tableconstructor { }
+            ;
+
+        function     ::= "function" funcbody { };
+        funcbody     ::= params block "end" { };
+        params       ::= "(" parlist ")" { };
+
+        parlist      ::=
+            | namelist { }
+            | "..." { }
+            | namelist "," "..." { }
+            | $epsilon
+            ;
+
+        tableconstructor ::=
+            | "{" "}" { }
+            | "{" fieldlist "}" { }
+            | "{" fieldlist ("," | ";") "}" { }
+            ;
+
+        fieldlist    ::=
+            | field { }
+            | fieldlist ("," | ";") field { }
+            ;
+
+        field        ::=
+            | exp { }
+            | Tok::Ident "=" exp { }
+            | "[" exp "]" "=" exp { }
             ;
     }
 
     impl Match<EndOfInput> for Parser {
         fn matches(a: &Token<Tok>, b: &EndOfInput) -> bool {
-            a.kind == Tok::End
+            a.kind == Tok::EndOfInput
         }
 
         fn show_expected(t: &EndOfInput) -> String {
@@ -92,13 +278,35 @@ mod expr {
     }
 }
 
-fn res_to_str(res: ParseResult<i32, Token<Tok>>) -> String {
+fn dump_error(err: &ParseErr<Token<Tok>>) {
+    println!("Err:");
+    for (rule, element) in &err.elements {
+        print!("  While parsing {} expected: ", rule);
+
+        let mut fst = true;
+        for tok in &element.expected_elements {
+            if !fst {
+                print!(" or ");
+            }
+            fst = false;
+            print!("{}", tok);
+        }
+        println!();
+    }
+    match &err.found_element {
+        Found::Element(e) => println!("But got '{}'", e.value),
+        Found::EndOfInput => println!("But got end of input"),
+        Found::Stub => panic!(),
+    }
+}
+
+fn res_to_str(res: ParseResult<(), Token<Tok>>) -> String {
     if res.is_err() {
+        dump_error(&res.err().unwrap());
         "err".into()
     }
     else {
-        let val = res.ok().unwrap().value;
-        format!("{}", val)
+        "ok".into()
     }
 }
 
@@ -138,7 +346,7 @@ fn main() {
 
     let mut incr_tokens = Vec::new();
     let mut incr_lexer = Tok::lexer();
-    let mut incr_parser = expr::Parser::new();
+    let mut incr_parser = lua::Parser::new();
 
     let stdin = io::stdin();
     let stdin_lock = stdin.lock();
@@ -155,11 +363,13 @@ fn main() {
 
         let removed_range = offset..(offset + removed);
 
+        println!("=======================");
+
         // Nonincremental
         let nir = {
             let mut lexer = Tok::lexer();
             let mut tokens = Vec::new();
-            let mut parser = expr::Parser::new();
+            let mut parser = lua::Parser::new();
 
             let start = Instant::now();
 
@@ -169,7 +379,7 @@ fn main() {
             let m = lexer.modify(&tokens, 0..0, &nonincr_source);
             tokens.splice(m.erased, m.inserted);
 
-            let r = parser.expr(tokens.iter().cloned());
+            let r = parser.prg(tokens.iter().cloned());
 
             let elapsed = start.elapsed();
             println!("Full-parse took: {}", elapsed.as_millis());
@@ -185,7 +395,7 @@ fn main() {
 
             incr_parser.invalidate(m.erased, m.inserted);
 
-            let r = incr_parser.expr(incr_tokens.iter().cloned());
+            let r = incr_parser.prg(incr_tokens.iter().cloned());
 
             let elapsed = start.elapsed();
             println!("Incremental-parse took: {}", elapsed.as_millis());

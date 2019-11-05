@@ -248,7 +248,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type,
             match m {
                 None => {
                     let mut base = Rc::new(RefCell::new(
-                        irec::LeftRecursive::with_parser_and_seed::<#ret_ty>(#name, ParseErr::new().into())));
+                        irec::LeftRecursive::with_parser_and_seed::<#ret_ty, #item_type>(#name, ParseErr::new().into())));
                     self.call_stack.push(base.clone());
                     #memo_entry.insert(idx, irec::Entry::LeftRecursive(base.clone()));
                     let tmp_res = self.#apply_fname(src.clone(), idx);
