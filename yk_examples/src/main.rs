@@ -83,7 +83,13 @@ mod peg {
 
         prefix ::=
             | ident { }
+            | ident2 { }
             | call { }
+            ;
+
+        ident2 ::=
+            | TokTy::Ident {  }
+            | prefix "." TokTy::Ident { }
             ;
     }
 
@@ -323,7 +329,7 @@ fn dump_error(err: &ParseErr<Token<TokTy>>) {
 }
 
 fn main() {
-    let src = "x.x.x()";
+    let src = "x.x()";
 
     let mut lexer = TokTy::lexer();
     let mut tokens = Vec::new();

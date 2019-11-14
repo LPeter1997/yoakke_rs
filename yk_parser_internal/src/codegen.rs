@@ -82,6 +82,28 @@ pub fn generate_code(rules: &bnf::RuleSet) -> TokenStream {
 
     quote!{
         //mod #memo_ctx_mod {
+            // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            static mut s_indent: usize = 0;
+            struct Indent(usize);
+            impl Indent {
+                fn i(s: &str) -> Self {
+                    for i in 0..unsafe{ s_indent } { print!("  "); }
+                    println!("{}", s);
+                    unsafe { s_indent += 1; };
+                    Self(unsafe{ s_indent })
+                }
+                fn w(&self, s: &str) {
+                    for i in 0..self.0 { print!("  "); }
+                    println!("{}", s);
+                }
+            }
+            impl Drop for Indent {
+                fn drop(&mut self) {
+                    unsafe { s_indent -= 1; };
+                }
+            }
+            // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
             use ::yk_parser::{irec, drec, ParseResult, ParseOk, ParseErr, Found, Match, EndOfInput};
             use ::std::string::String;
             use ::std::option::Option;
@@ -245,10 +267,13 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
         }},
 
         bnf::LeftRecursion::Indirect => {quote!{
+            let scope = Indent::i(&format!("parse_{}", #name));
+
             let m = self.#recall_fname(src.clone(), idx); // Option<irec::Entry<T>>
 
             match m {
                 None => {
+                    scope.w("-> m is None");
                     let mut base = Rc::new(RefCell::new(
                         irec::LeftRecursive::with_parser_and_seed::<#ret_ty, #item_type>(#name, ParseErr::new().into())));
                     self.call_stack.push(base.clone());
@@ -257,20 +282,27 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
                     self.call_stack.pop();
 
                     if base.borrow().head.is_none() {
+                        scope.w("-> base head is None");
                         insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).parse_result()
                     }
                     else {
+                        scope.w("-> base head is Some");
                         base.borrow_mut().seed = Box::new(tmp_res);
                         self.#lr_answer_fname(src.clone(), idx, &base)
                     }
                 },
 
                 Some(irec::Entry::LeftRecursive(lr)) => {
-                    self.call_stack.setup_lr(#name, &lr);
+                    scope.w("-> m is LeftRecursive");
+                    {
+                        let scope = Indent::i(&format!("setup_lr_{}", #name));
+                        self.call_stack.setup_lr(#name, &lr);
+                    }
                     lr.borrow().parse_result()
                 },
 
                 Some(irec::Entry::ParseResult(r)) => {
+                    scope.w("-> m is ParseResult");
                     r.clone()
                 }
             }
@@ -316,24 +348,29 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
                 -> Option<irec::Entry<#ret_ty, #item_type>>
                 where #where_clause {
 
+                let scope = Indent::i(&format!("recall_{}", #name));
+
                 let curr_rule = #name;
 
                 let cached = #memo_entry.get(&idx);
                 let in_heads = self.call_heads.get(&idx);
 
                 match (in_heads, cached) {
-                    (None, None) => None,
-                    (None, Some(c)) => Some((*c).clone()),
+                    (None, None) => { scope.w("-> in_heads is None, cached is None"); None },
+                    (None, Some(c)) => { scope.w("-> in_heads is None, cached is Some"); Some((*c).clone()) },
 
                     (Some(h), c) => {
                         if c.is_none() && !(#name == h.borrow().head || h.borrow().involved.contains(#name)) {
+                            scope.w("-> cached is None, name is head or involved");
                             Some(irec::Entry::ParseResult(ParseErr::new().into()))
                         }
                         else if h.borrow_mut().eval.remove(#name) {
+                            scope.w("-> removed from eval");
                             let tmp_res = self.#apply_fname(src.clone(), idx);
                             Some(insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(tmp_res)).clone())
                         }
                         else {
+                            scope.w("-> just cached");
                             c.cloned()
                         }
                     }
@@ -345,19 +382,24 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
                 -> ParseResult<#ret_ty, #item_type>
                 where #where_clause {
 
+                let scope = Indent::i(&format!("lr_answer_{}", #name));
+
                 assert!((*growable).borrow().head.is_some());
 
                 let seed = (*growable).borrow().parse_result();
 
                 if (*growable).borrow().head.as_ref().unwrap().borrow().head != #name {
+                    scope.w("-> h is not this parser");
                     return seed;
                 }
 
                 let s = insert_and_get(&mut #memo_entry, idx, irec::Entry::ParseResult(seed)).parse_result();
                 if s.is_err() {
+                    scope.w("-> s is Err");
                     return s;
                 }
                 else {
+                    scope.w("-> s is Ok");
                     return self.#grow_fname(src.clone(), idx, s, (*growable).borrow().head.as_ref().unwrap());
                 }
             }
@@ -366,6 +408,8 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
                 old: ParseResult<#ret_ty, #item_type>, h: &Rc<RefCell<irec::RecursionHead>>)
                 -> ParseResult<#ret_ty, #item_type>
                 where #where_clause {
+
+                let scope = Indent::i(&format!("grow_{}", #name));
 
                 let curr_rule = #name;
 
@@ -376,6 +420,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
                 let tmp_res = self.#apply_fname(src.clone(), idx);
                 // TODO: Oof, unnecessary cloning
                 if tmp_res.is_ok() && old.matched() < tmp_res.matched() {
+                    scope.w("-> tmp_res is further than old");
                     // Successfully grew the seed
                     // Unify with old for furthest error
                     let updated = ParseResult::unify_alternatives(tmp_res, old);
@@ -383,6 +428,7 @@ fn generate_code_rule(rs: &bnf::RuleSet, ret_ty: &Type, trace_lvl: bnf::TraceLev
                         &mut #memo_entry, idx, irec::Entry::ParseResult(updated)).parse_result();
                     return self.#grow_fname(src.clone(), idx, new_old, h);
                 }
+                scope.w("-> tmp_res is NOT further than old");
                 // We need to overwrite max-furthest in the memo-table!
                 // That's why we don't simply return old_res
                 self.call_heads.remove(&idx);
@@ -609,15 +655,19 @@ fn generate_code_ident(rs: &bnf::RuleSet, counter: usize, lit: &Path) -> (TokenS
 fn generate_code_atom(rs: &bnf::RuleSet, counter: usize, tok: TokenStream) -> (TokenStream, Vec<Type>) {
     let code = quote!{{
         let mut src2 = src.clone();
+        let scope = Indent::i(&format!("matching {}...", Self::show_expected(&#tok)));
         if let Some(v) = src2.next() {
             if Self::matches(&v, &#tok) {
+                scope.w("match");
                 ParseOk{ matched: 1, furthest_error: None, value: (v) }.into()
             }
             else {
+                scope.w(&format!("mismatch, got {:?}", v));
                 ParseErr::single(1, Found::Element(v), curr_rule, Self::show_expected(&#tok)).into()
             }
         }
         else {
+            scope.w(&format!("mismatch, got eof"));
             ParseErr::single(1, Found::EndOfInput, curr_rule, Self::show_expected(&#tok)).into()
         }
     }};
